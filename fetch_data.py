@@ -163,27 +163,45 @@ def summarize_data_with_latest(data):
 
 # Main execution
 if __name__ == "__main__":
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    data_dir = os.path.join(current_dir, "data")
-    os.makedirs(data_dir, exist_ok=True)
-    output_file = os.path.join(data_dir, "latest_summary.csv")
+    try:
+        # 現在のディレクトリとデータ保存ディレクトリを設定
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        data_dir = os.path.join(current_dir, "data")
+        os.makedirs(data_dir, exist_ok=True)  # ディレクトリが存在しない場合に作成
+        output_file = os.path.join(data_dir, "latest_summary.csv")
 
-    print("Fetching symbols...")
-    symbols = fetch_all_symbols()
-    if not symbols:
-        print("No symbols retrieved. Please check the API response.")
-    else:
-        print(f"Total symbols fetched: {len(symbols)}")
+        print("Fetching symbols...")
+        symbols = fetch_all_symbols()
+        if not symbols:
+            print("No symbols retrieved. Please check the API response.")
+        else:
+            print(f"Total symbols fetched: {len(symbols)}")
 
-    interval = "15"  # 15-minute interval
-    data = fetch_data_parallel(symbols, interval)
+        # データ取得と処理
+        interval = "15"  # 15-minute interval
+        data = fetch_data_parallel(symbols, interval)
 
-    if data.empty:
-        print("No data retrieved. Please check the API response or symbols list.")
-    else:
-        summary = summarize_data_with_latest(data)
-        try:
-            summary.to_csv(output_file, index=False)
-            print(f"Data saved to {output_file}")
-        except Exception as e:
-            print(f"Failed to save CSV: {e}")
+        if data.empty:
+            print("No data retrieved. Please check the API response or symbols list.")
+        else:
+            # データ要約
+            summary = summarize_data_with_latest(data)
+
+            # ファイル書き込み部分の改善
+            try:
+                # CSV ファイルにデータを書き込む
+                with open(output_file, mode="w", encoding="utf-8", newline="") as f:
+                    summary.to_csv(f, index=False)
+                print(f"Data saved successfully to {output_file}")
+            except Exception as e:
+                print(f"Failed to save CSV file. Error: {e}")
+
+            # ファイル内容の確認
+            if os.path.exists(output_file):
+                print(f"File saved at: {output_file}")
+                print(f"File size: {os.path.getsize(output_file)} bytes")
+            else:
+                print("File not found after saving attempt.")
+
+    except Exception as main_exception:
+        print(f"An error occurred in the main execution: {main_exception}")
