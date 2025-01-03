@@ -10,11 +10,22 @@ BASE_URL_KLINE = "https://api.bybit.com/v5/market/kline"
 BASE_URL_OI = "https://api.bybit.com/v5/market/open-interest"
 SYMBOLS_URL = "https://api.bybit.com/v5/market/instruments-info"
 
+# 環境変数からAPIキーを取得
+API_KEY = os.getenv("BYBIT_API_KEY")
+if not API_KEY:
+    print("Error: BYBIT_API_KEY is not set.")
+    exit(1)  # スクリプトを終了
+
+# ヘッダーにAPIキーを設定
+HEADERS = {
+    "X-BYBIT-API-KEY": API_KEY
+}
+
 # Fetch all USDT perpetual futures symbols
 def fetch_all_symbols(category="linear"):
     try:
         params = {"category": category}
-        response = requests.get(SYMBOLS_URL, params=params)
+        response = requests.get(SYMBOLS_URL, params=params, headers=HEADERS)
         response.raise_for_status()
         print("HTTPステータスコード:", response.status_code)
         data = response.json()
@@ -37,7 +48,7 @@ def get_kline_data(symbol, interval, start_time, end_time):
             "start": int(start_time.timestamp() * 1000),
             "end": int(end_time.timestamp() * 1000)
         }
-        response = requests.get(BASE_URL_KLINE, params=params)
+        response = requests.get(BASE_URL_KLINE, params=params, headers=HEADERS)
         response.raise_for_status()
         data = response.json()
         return data.get("result", {}).get("list", [])
@@ -57,7 +68,7 @@ def get_open_interest_history(symbol, interval_time="15min"):
             "start": int(start_time.timestamp() * 1000),
             "end": int(end_time.timestamp() * 1000)
         }
-        response = requests.get(BASE_URL_OI, params=params)
+        response = requests.get(BASE_URL_OI, params=params, headers=HEADERS)
         response.raise_for_status()
         data = response.json()
         historical_data = data.get("result", {}).get("list", [])
