@@ -6,3 +6,4 @@ pandas==2.2.3
 pybit==5.8.0
 numpy==1.26.3
 gunicorn==20.1.0
+flask==2.3.3
