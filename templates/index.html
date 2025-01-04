@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>Crypto Data</title>
   <style>
     body {
@@ -12,36 +12,38 @@
       background-color: #2d2d2d;
       color: #ffffff;
     }
+
     h1 {
       text-align: center;
       margin: 20px 0;
     }
+
     .last-updated {
       text-align: center;
       margin-bottom: 5px;
       font-size: 14px;
       color: #aaaaaa;
     }
-    .global-timestamp {
-      text-align: center;
-      margin-bottom: 20px;
-      font-size: 16px;
-      color: #ffecb3;
-    }
+
     .search-container {
       text-align: center;
       margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 5px; /* 隙間を空ける */
     }
+
     .search-bar {
-      padding: 8px;
-      width: 300px;
-      font-size: 16px;
-      margin: 5px;
+      padding: 6px;
+      width: 200px;
+      font-size: 14px;
       max-width: 90%;
     }
+
     .filter-button {
       padding: 8px 16px;
-      font-size: 16px;
+      font-size: 14px;
       margin: 5px;
       cursor: pointer;
       background-color: #444;
@@ -49,10 +51,12 @@
       border: none;
       border-radius: 4px;
     }
+
     .filter-button.active {
       background-color: #00ff00;
       color: #000000;
     }
+
     .update-button {
       padding: 8px 16px;
       font-size: 16px;
@@ -65,73 +69,90 @@
       border-radius: 4px;
       text-align: center;
     }
+
     .update-button:hover {
       background-color: #0056b3;
     }
+
     .condition-buttons {
       display: flex;
       justify-content: center;
       flex-wrap: wrap;
       margin: 20px 0;
     }
+
     .table-container {
       width: 100%;
       margin: 20px auto;
-      overflow-x: auto;
+      overflow-x: auto; /* 横スクロールを有効にする */
     }
+
     .data {
       border-collapse: collapse;
       table-layout: fixed;
-      min-width: 800px;
+      min-width: 600px; /* カラム数が減ったので多少小さめに */
       width: 100%;
     }
-    .data th, .data td {
+
+    .data th,
+    .data td {
       border: 1px solid #444;
       padding: 8px 12px;
       text-align: center;
-      white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      /* デフォルトでは折り返さないが、Symbol だけは後述のCSSで調整 */
+      white-space: nowrap;
     }
-    .data th {
-      background-color: #444;
+
+    /* Symbol 列を固定表示する (1列目をstickyに) */
+    .data th:nth-child(1),
+    .data td:nth-child(1) {
       position: sticky;
-      top: 0;
-      z-index: 1;
-      cursor: pointer;
+      left: 0;
+      background-color: #444; /* 見やすいよう背景を固定 */
+      z-index: 2;
     }
+
+    /* シンボル列のフォントサイズを自動調整し、折り返し表示 */
+    .symbol-cell {
+      white-space: normal;         /* 折り返し有効 */
+      word-wrap: break-word;       /* 長い単語を折り返し */
+      font-size: clamp(12px, 2vw, 16px); 
+      max-width: 150px;            /* 幅を決めて折り返しが起きるように */
+    }
+
     .data tr:nth-child(even) {
       background-color: #3d3d3d;
     }
+
     .data tr:hover {
       background-color: #555;
     }
+
     .positive {
       color: #00ff00;
     }
+
     .negative {
       color: #ff0000;
     }
+
     @media (max-width: 600px) {
       h1 {
         font-size: 1.2em;
         margin: 10px 0;
       }
-      .search-bar {
-        font-size: 14px;
-      }
-      .filter-button,
+
       .update-button {
         font-size: 14px;
         padding: 6px 10px;
-        margin: 5px;
       }
-      .data th, .data td {
-        font-size: 14px;
+
+      .data th,
+      .data td {
+        font-size: 12px;
         padding: 6px 8px;
-      }
-      .table-container {
-        margin: 10px auto;
       }
     }
   </style>
@@ -139,13 +160,12 @@
 <body>
   <h1>Crypto Data Table</h1>
   <div class="last-updated" id="last-updated"></div>
-  <!-- BTCUSDTや最初のレコードのtimestampを表示する領域 -->
-  <div class="global-timestamp" id="global-timestamp"></div>
 
   <div class="search-container">
-    <input type="text" id="symbol-search" class="search-bar" placeholder="Search by symbol">
+    <input type="text" id="symbol-search" class="search-bar" placeholder="Search by symbol" />
     <button id="clear-filters" class="filter-button">Clear</button>
   </div>
+
   <button id="fetch-data" class="update-button">データ更新</button>
 
   <div class="condition-buttons">
@@ -167,7 +187,6 @@
     const clearFiltersButton = document.getElementById('clear-filters');
     const tableContainer = document.getElementById('table-container');
     const lastUpdated = document.getElementById('last-updated');
-    const globalTimestamp = document.getElementById('global-timestamp');
 
     const conditionButtons = {
       pricePositive: document.getElementById('price-positive'),
@@ -178,13 +197,10 @@
       oiNegative: document.getElementById('oi-negative'),
     };
 
-    // 非表示にしたい列: open, high, low をカラム定義から削除
+    // timestamp は非表示にするため、columns から削除
+    // open, high, low も削除済み
     const columns = [
       { name: 'symbol', label: 'Symbol' },
-      // { name: 'timestamp', label: 'Timestamp' }, // 消す
-      // { name: 'open', label: 'Open' },    // 消す
-      // { name: 'high', label: 'High' },    // 消す
-      // { name: 'low',  label: 'Low'  },    // 消す
       { name: 'close', label: 'Close' },
       { name: 'volume', label: 'Volume' },
       { name: 'openInterest', label: 'Open Interest' },
@@ -202,7 +218,6 @@
     };
     let currentSort = { column: null, order: 'asc' };
 
-    // データ更新ボタン
     fetchDataButton.addEventListener('click', async () => {
       try {
         const response = await fetch('/api/fetch', { method: 'POST' });
@@ -217,7 +232,6 @@
       }
     });
 
-    // 最新データ取得
     async function fetchLatestData() {
       try {
         const response = await fetch('/api/data');
@@ -230,25 +244,9 @@
         // 更新日時を表示（例）
         const now = new Date().toLocaleString();
         lastUpdated.textContent = `Last Updated: ${now}`;
-
-        // BTCUSDTがあればそのtimestampを画面上部に表示、
-        // なければデータの最初のtimestampを代わりに表示。
-        displayGlobalTimestamp();
       } catch (error) {
         console.error('Error fetching data:', error);
       }
-    }
-
-    // BTCUSDTまたは先頭レコードのtimestampを上部に表示
-    function displayGlobalTimestamp() {
-      if (!originalData.length) {
-        globalTimestamp.textContent = '';
-        return;
-      }
-      // BTCUSDTを検索
-      const btcRow = originalData.find(row => row.symbol.toUpperCase() === 'BTCUSDT');
-      const rowToUse = btcRow || originalData[0];
-      globalTimestamp.textContent = `Timestamp (BTCUSDT or first): ${rowToUse.timestamp}`;
     }
 
     function applyFilters() {
@@ -259,16 +257,19 @@
       } else if (filters.priceChangeRate === 'negative') {
         filteredData = filteredData.filter(row => row.price_change_rate < 0);
       }
+
       if (filters.volumeChangeRate === 'positive') {
         filteredData = filteredData.filter(row => row.volume_change_rate >= 0);
       } else if (filters.volumeChangeRate === 'negative') {
         filteredData = filteredData.filter(row => row.volume_change_rate < 0);
       }
+
       if (filters.oiChangeRate === 'positive') {
         filteredData = filteredData.filter(row => row.oi_change_rate >= 0);
       } else if (filters.oiChangeRate === 'negative') {
         filteredData = filteredData.filter(row => row.oi_change_rate < 0);
       }
+
       if (filters.symbolSearch) {
         filteredData = filteredData.filter(row =>
           row.symbol.toLowerCase().includes(filters.symbolSearch.toLowerCase())
@@ -302,8 +303,7 @@
       data.forEach(row => {
         tableHtml += `
           <tr>
-            <td>${row.symbol}</td>
-            <td>${row.timestamp}</td>
+            <td class="symbol-cell">${row.symbol}</td>
             <td>${row.close}</td>
             <td>${row.volume}</td>
             <td>${row.openInterest}</td>
@@ -325,15 +325,24 @@
     }
 
     function generateTableHeaders() {
-      return columns.map(column => `
-        <th data-column="${column.name}" onclick="sortTable('${column.name}')">
-          ${column.label}
-          ${currentSort.column === column.name ? (currentSort.order === 'asc' ? '▲' : '▼') : ''}
-        </th>
-      `).join('');
+      return columns
+        .map(column => {
+          return `
+            <th data-column="${column.name}" onclick="sortTable('${column.name}')">
+              ${column.label} 
+              ${
+                currentSort.column === column.name
+                  ? currentSort.order === 'asc'
+                    ? '▲'
+                    : '▼'
+                  : ''
+              }
+            </th>
+          `;
+        })
+        .join('');
     }
 
-    // 列クリックでソート
     function sortTable(column) {
       if (currentSort.column === column) {
         currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
@@ -360,7 +369,6 @@
       const button = conditionButtons[key];
       button.addEventListener('click', () => {
         const type = key.includes('Positive') ? 'positive' : 'negative';
-        // key: "pricePositive" -> filters.priceChangeRate
         const filterKey = key.replace(/(price|volume|oi)(Positive|Negative)/, '$1ChangeRate');
         filters[filterKey] = filters[filterKey] === type ? null : type;
         button.classList.toggle('active', filters[filterKey] === type);
@@ -373,7 +381,7 @@
       applyFilters();
     });
 
-    // ページロード時に自動でデータ取得
+    // ページ読み込み時に最新データを取得
     fetchLatestData();
   </script>
 </body>
