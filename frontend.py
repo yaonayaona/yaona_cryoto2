@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, render_template
 import pandas as pd
 import os
+import requests  # 追加
 
 app = Flask(__name__)
 
@@ -21,6 +22,17 @@ def fetch_data():
 @app.route("/")
 def index():
     return render_template("index.html")
+
+# Renderの外部IPアドレスを取得するエンドポイントを追加
+@app.route("/get-ip", methods=["GET"])
+def get_ip():
+    try:
+        response = requests.get("https://ifconfig.me")
+        response.raise_for_status()
+        ip_address = response.text
+        return jsonify({"external_ip": ip_address})
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)
