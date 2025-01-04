@@ -10,20 +10,6 @@ BASE_URL_KLINE = "https://api.bybit.com/v5/market/kline"
 BASE_URL_OI = "https://api.bybit.com/v5/market/open-interest"
 SYMBOLS_URL = "https://api.bybit.com/v5/market/instruments-info"
 
-# 環境変数からAPIキーを取得
-API_KEY = os.getenv("BYBIT_API_KEY")
-if not API_KEY:
-    print("Error: BYBIT_API_KEY is not set.")
-    exit(1)  # スクリプトを終了
-
-# ヘッダーにAPIキーを設定
-HEADERS = {
-    "X-BYBIT-API-KEY": API_KEY
-}
-
-# ヘッダーをログ出力
-print("Request Headers:", HEADERS)
-
 # Fetch all USDT perpetual futures symbols
 def fetch_all_symbols(category="linear"):
     try:
