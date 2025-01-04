@@ -10,6 +10,14 @@ BASE_URL_KLINE = "https://api.bybit.com/v5/market/kline"
 BASE_URL_OI = "https://api.bybit.com/v5/market/open-interest"
 SYMBOLS_URL = "https://api.bybit.com/v5/market/instruments-info"
 
+# ここではパブリックAPI用に最小限のUser-Agentを送る例
+HEADERS = {
+    "User-Agent": "my-simple-script/1.0"
+}
+
+# ヘッダーをログ出力
+print("Request Headers:", HEADERS)
+
 # Fetch all USDT perpetual futures symbols
 def fetch_all_symbols(category="linear"):
     try:
@@ -139,7 +147,7 @@ def summarize_data_with_latest(data):
             )
             oi_change_rate = (
                 (recent_group["openInterest"].iloc[-1] - recent_group["openInterest"].iloc[0]) / recent_group["openInterest"].iloc[0] * 100
-                if recent_group["openInterest"].iloc[0] > 0 else 0
+                if "openInterest" in recent_group.columns and recent_group["openInterest"].iloc[0] > 0 else 0
             )
 
             summary.append({
@@ -164,10 +172,9 @@ def summarize_data_with_latest(data):
 # Main execution
 if __name__ == "__main__":
     try:
-        # 現在のディレクトリとデータ保存ディレクトリを設定
         current_dir = os.path.dirname(os.path.abspath(__file__))
         data_dir = os.path.join(current_dir, "data")
-        os.makedirs(data_dir, exist_ok=True)  # ディレクトリが存在しない場合に作成
+        os.makedirs(data_dir, exist_ok=True)
         output_file = os.path.join(data_dir, "latest_summary.csv")
 
         print("Fetching symbols...")
@@ -177,26 +184,20 @@ if __name__ == "__main__":
         else:
             print(f"Total symbols fetched: {len(symbols)}")
 
-        # データ取得と処理
         interval = "15"  # 15-minute interval
         data = fetch_data_parallel(symbols, interval)
 
         if data.empty:
             print("No data retrieved. Please check the API response or symbols list.")
         else:
-            # データ要約
             summary = summarize_data_with_latest(data)
-
-            # ファイル書き込み部分の改善
             try:
-                # CSV ファイルにデータを書き込む
                 with open(output_file, mode="w", encoding="utf-8", newline="") as f:
                     summary.to_csv(f, index=False)
                 print(f"Data saved successfully to {output_file}")
             except Exception as e:
                 print(f"Failed to save CSV file. Error: {e}")
 
-            # ファイル内容の確認
             if os.path.exists(output_file):
                 print(f"File saved at: {output_file}")
                 print(f"File size: {os.path.getsize(output_file)} bytes")
