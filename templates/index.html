@@ -1,375 +1,380 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crypto Data</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #2d2d2d;
-            color: #ffffff;
-        }
-        h1 {
-            text-align: center;
-            margin: 20px 0;
-        }
-        .last-updated {
-            text-align: center;
-            margin-bottom: 10px;
-            font-size: 14px;
-            color: #aaaaaa;
-        }
-        .search-container {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .search-bar {
-            padding: 8px;
-            width: 300px;
-            font-size: 16px;
-            margin: 5px;
-            max-width: 90%; /* スマホで画面幅を超えないように */
-        }
-        .filter-button {
-            padding: 8px 16px;
-            font-size: 16px;
-            margin: 5px;
-            cursor: pointer;
-            background-color: #444;
-            color: #ffffff;
-            border: none;
-            border-radius: 4px;
-        }
-        .filter-button.active {
-            background-color: #00ff00;
-            color: #000000;
-        }
-        .update-button {
-            padding: 8px 16px;
-            font-size: 16px;
-            margin: 10px auto;
-            display: block;
-            cursor: pointer;
-            background-color: #007bff;
-            color: #ffffff;
-            border: none;
-            border-radius: 4px;
-            text-align: center;
-        }
-        .update-button:hover {
-            background-color: #0056b3;
-        }
-        .condition-buttons {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin: 20px 0;
-        }
-        .table-container {
-            /* 幅を100%にしてスマホ時のはみ出しを制御 */
-            width: 100%;
-            margin: 20px auto;
-            overflow-x: auto;
-        }
-        .data {
-            border-collapse: collapse;
-            table-layout: fixed; /* 固定レイアウト */
-            min-width: 800px;    /* カラム幅確保のため、必要に応じて調整 */
-            width: 100%;
-        }
-        .data th, .data td {
-            border: 1px solid #444;
-            padding: 8px 12px;
-            text-align: center;
-            /* 必要に応じて折り返し表示: */
-            /* white-space: normal; 
-               overflow-wrap: break-word; */
-            /* デフォルトは折り返さない: */
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .data th {
-            background-color: #444;
-            position: sticky;
-            top: 0;
-            z-index: 1;
-            cursor: pointer;
-        }
-        .data th .sort-indicator {
-            margin-left: 5px;
-            font-size: 12px;
-        }
-        .data tr:nth-child(even) {
-            background-color: #3d3d3d;
-        }
-        .data tr:hover {
-            background-color: #555;
-        }
-        .positive {
-            color: #00ff00;
-        }
-        .negative {
-            color: #ff0000;
-        }
-        .neutral {
-            color: #ffffff;
-        }
-
-        /* スマホなど画面幅が小さい場合の調整 */
-        @media (max-width: 600px) {
-            h1 {
-                font-size: 1.2em;
-                margin: 10px 0;
-            }
-            .search-bar {
-                font-size: 14px;
-            }
-            .filter-button,
-            .update-button {
-                font-size: 14px;
-                padding: 6px 10px;
-                margin: 5px;
-            }
-            /* テーブル内のフォントサイズを小さく */
-            .data th, .data td {
-                font-size: 14px;
-                padding: 6px 8px;
-            }
-            .table-container {
-                margin: 10px auto;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Crypto Data</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #2d2d2d;
+      color: #ffffff;
+    }
+    h1 {
+      text-align: center;
+      margin: 20px 0;
+    }
+    .last-updated {
+      text-align: center;
+      margin-bottom: 5px;
+      font-size: 14px;
+      color: #aaaaaa;
+    }
+    .global-timestamp {
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 16px;
+      color: #ffecb3;
+    }
+    .search-container {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .search-bar {
+      padding: 8px;
+      width: 300px;
+      font-size: 16px;
+      margin: 5px;
+      max-width: 90%;
+    }
+    .filter-button {
+      padding: 8px 16px;
+      font-size: 16px;
+      margin: 5px;
+      cursor: pointer;
+      background-color: #444;
+      color: #ffffff;
+      border: none;
+      border-radius: 4px;
+    }
+    .filter-button.active {
+      background-color: #00ff00;
+      color: #000000;
+    }
+    .update-button {
+      padding: 8px 16px;
+      font-size: 16px;
+      margin: 10px auto;
+      display: block;
+      cursor: pointer;
+      background-color: #007bff;
+      color: #ffffff;
+      border: none;
+      border-radius: 4px;
+      text-align: center;
+    }
+    .update-button:hover {
+      background-color: #0056b3;
+    }
+    .condition-buttons {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin: 20px 0;
+    }
+    .table-container {
+      width: 100%;
+      margin: 20px auto;
+      overflow-x: auto;
+    }
+    .data {
+      border-collapse: collapse;
+      table-layout: fixed;
+      min-width: 800px;
+      width: 100%;
+    }
+    .data th, .data td {
+      border: 1px solid #444;
+      padding: 8px 12px;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .data th {
+      background-color: #444;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      cursor: pointer;
+    }
+    .data tr:nth-child(even) {
+      background-color: #3d3d3d;
+    }
+    .data tr:hover {
+      background-color: #555;
+    }
+    .positive {
+      color: #00ff00;
+    }
+    .negative {
+      color: #ff0000;
+    }
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 1.2em;
+        margin: 10px 0;
+      }
+      .search-bar {
+        font-size: 14px;
+      }
+      .filter-button,
+      .update-button {
+        font-size: 14px;
+        padding: 6px 10px;
+        margin: 5px;
+      }
+      .data th, .data td {
+        font-size: 14px;
+        padding: 6px 8px;
+      }
+      .table-container {
+        margin: 10px auto;
+      }
+    }
+  </style>
 </head>
 <body>
-    <h1>Crypto Data Table</h1>
-    <div class="last-updated" id="last-updated"></div>
-    <div class="search-container">
-        <input type="text" id="symbol-search" class="search-bar" placeholder="Search by symbol">
-        <button id="clear-filters" class="filter-button">Clear</button>
-    </div>
-    <button id="fetch-data" class="update-button">データ更新</button>
+  <h1>Crypto Data Table</h1>
+  <div class="last-updated" id="last-updated"></div>
+  <!-- BTCUSDTや最初のレコードのtimestampを表示する領域 -->
+  <div class="global-timestamp" id="global-timestamp"></div>
 
-    <div class="condition-buttons">
-        <button id="price-positive" class="filter-button">価格変化 ≧ 0</button>
-        <button id="price-negative" class="filter-button">価格変化 ＜ 0</button>
-        <button id="volume-positive" class="filter-button">出来高 ≧ 0</button>
-        <button id="volume-negative" class="filter-button">出来高 ＜ 0</button>
-        <button id="oi-positive" class="filter-button">OI変化 ≧ 0</button>
-        <button id="oi-negative" class="filter-button">OI変化 ＜ 0</button>
-    </div>
+  <div class="search-container">
+    <input type="text" id="symbol-search" class="search-bar" placeholder="Search by symbol">
+    <button id="clear-filters" class="filter-button">Clear</button>
+  </div>
+  <button id="fetch-data" class="update-button">データ更新</button>
 
-    <div class="table-container" id="table-container">
-        <!-- テーブルはJSで動的に生成されます -->
-    </div>
+  <div class="condition-buttons">
+    <button id="price-positive" class="filter-button">価格変化 ≧ 0</button>
+    <button id="price-negative" class="filter-button">価格変化 ＜ 0</button>
+    <button id="volume-positive" class="filter-button">出来高 ≧ 0</button>
+    <button id="volume-negative" class="filter-button">出来高 ＜ 0</button>
+    <button id="oi-positive" class="filter-button">OI変化 ≧ 0</button>
+    <button id="oi-negative" class="filter-button">OI変化 ＜ 0</button>
+  </div>
 
-    <script>
-        const fetchDataButton = document.getElementById('fetch-data');
-        const symbolSearch = document.getElementById('symbol-search');
-        const clearFiltersButton = document.getElementById('clear-filters');
-        const tableContainer = document.getElementById('table-container');
-        const lastUpdated = document.getElementById('last-updated');
+  <div class="table-container" id="table-container">
+    <!-- テーブルはJSで動的に生成されます -->
+  </div>
 
-        const conditionButtons = {
-            pricePositive: document.getElementById('price-positive'),
-            priceNegative: document.getElementById('price-negative'),
-            volumePositive: document.getElementById('volume-positive'),
-            volumeNegative: document.getElementById('volume-negative'),
-            oiPositive: document.getElementById('oi-positive'),
-            oiNegative: document.getElementById('oi-negative'),
-        };
+  <script>
+    const fetchDataButton = document.getElementById('fetch-data');
+    const symbolSearch = document.getElementById('symbol-search');
+    const clearFiltersButton = document.getElementById('clear-filters');
+    const tableContainer = document.getElementById('table-container');
+    const lastUpdated = document.getElementById('last-updated');
+    const globalTimestamp = document.getElementById('global-timestamp');
 
-        let originalData = [];
-        let filters = {
-            priceChangeRate: null,
-            volumeChangeRate: null,
-            oiChangeRate: null,
-            symbolSearch: '',
-        };
-        let currentSort = { column: null, order: 'asc' };
+    const conditionButtons = {
+      pricePositive: document.getElementById('price-positive'),
+      priceNegative: document.getElementById('price-negative'),
+      volumePositive: document.getElementById('volume-positive'),
+      volumeNegative: document.getElementById('volume-negative'),
+      oiPositive: document.getElementById('oi-positive'),
+      oiNegative: document.getElementById('oi-negative'),
+    };
 
-        fetchDataButton.addEventListener('click', async () => {
-            try {
-                const response = await fetch('/api/fetch', { method: 'POST' });
-                if (!response.ok) {
-                    throw new Error('Error fetching new data');
-                }
-                await fetchLatestData();
-                alert('データが更新されました！');
-            } catch (error) {
-                console.error('Error updating data:', error);
-                alert('データ更新中にエラーが発生しました。');
-            }
+    // 非表示にしたい列: open, high, low をカラム定義から削除
+    const columns = [
+      { name: 'symbol', label: 'Symbol' },
+      // { name: 'timestamp', label: 'Timestamp' }, // 消す
+      // { name: 'open', label: 'Open' },    // 消す
+      // { name: 'high', label: 'High' },    // 消す
+      // { name: 'low',  label: 'Low'  },    // 消す
+      { name: 'close', label: 'Close' },
+      { name: 'volume', label: 'Volume' },
+      { name: 'openInterest', label: 'Open Interest' },
+      { name: 'price_change_rate', label: '価格変動' },
+      { name: 'volume_change_rate', label: '出来高変化率' },
+      { name: 'oi_change_rate', label: 'OI変化率' },
+    ];
+
+    let originalData = [];
+    let filters = {
+      priceChangeRate: null,
+      volumeChangeRate: null,
+      oiChangeRate: null,
+      symbolSearch: '',
+    };
+    let currentSort = { column: null, order: 'asc' };
+
+    // データ更新ボタン
+    fetchDataButton.addEventListener('click', async () => {
+      try {
+        const response = await fetch('/api/fetch', { method: 'POST' });
+        if (!response.ok) {
+          throw new Error('Error fetching new data');
+        }
+        await fetchLatestData();
+        alert('データが更新されました！');
+      } catch (error) {
+        console.error('Error updating data:', error);
+        alert('データ更新中にエラーが発生しました。');
+      }
+    });
+
+    // 最新データ取得
+    async function fetchLatestData() {
+      try {
+        const response = await fetch('/api/data');
+        if (!response.ok) {
+          throw new Error('Error fetching data');
+        }
+        originalData = await response.json();
+        applyFilters();
+
+        // 更新日時を表示（例）
+        const now = new Date().toLocaleString();
+        lastUpdated.textContent = `Last Updated: ${now}`;
+
+        // BTCUSDTがあればそのtimestampを画面上部に表示、
+        // なければデータの最初のtimestampを代わりに表示。
+        displayGlobalTimestamp();
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    }
+
+    // BTCUSDTまたは先頭レコードのtimestampを上部に表示
+    function displayGlobalTimestamp() {
+      if (!originalData.length) {
+        globalTimestamp.textContent = '';
+        return;
+      }
+      // BTCUSDTを検索
+      const btcRow = originalData.find(row => row.symbol.toUpperCase() === 'BTCUSDT');
+      const rowToUse = btcRow || originalData[0];
+      globalTimestamp.textContent = `Timestamp (BTCUSDT or first): ${rowToUse.timestamp}`;
+    }
+
+    function applyFilters() {
+      let filteredData = [...originalData];
+
+      if (filters.priceChangeRate === 'positive') {
+        filteredData = filteredData.filter(row => row.price_change_rate >= 0);
+      } else if (filters.priceChangeRate === 'negative') {
+        filteredData = filteredData.filter(row => row.price_change_rate < 0);
+      }
+      if (filters.volumeChangeRate === 'positive') {
+        filteredData = filteredData.filter(row => row.volume_change_rate >= 0);
+      } else if (filters.volumeChangeRate === 'negative') {
+        filteredData = filteredData.filter(row => row.volume_change_rate < 0);
+      }
+      if (filters.oiChangeRate === 'positive') {
+        filteredData = filteredData.filter(row => row.oi_change_rate >= 0);
+      } else if (filters.oiChangeRate === 'negative') {
+        filteredData = filteredData.filter(row => row.oi_change_rate < 0);
+      }
+      if (filters.symbolSearch) {
+        filteredData = filteredData.filter(row =>
+          row.symbol.toLowerCase().includes(filters.symbolSearch.toLowerCase())
+        );
+      }
+
+      if (currentSort.column) {
+        filteredData.sort((a, b) => {
+          if (currentSort.order === 'asc') {
+            return a[currentSort.column] > b[currentSort.column] ? 1 : -1;
+          } else {
+            return a[currentSort.column] < b[currentSort.column] ? 1 : -1;
+          }
         });
+      }
 
-        async function fetchLatestData() {
-            try {
-                const response = await fetch('/api/data');
-                if (!response.ok) {
-                    throw new Error('Error fetching data');
-                }
-                originalData = await response.json();
-                applyFilters();
-                // 更新日時を表示（例）
-                const now = new Date().toLocaleString();
-                lastUpdated.textContent = `Last Updated: ${now}`;
-            } catch (error) {
-                console.error('Error fetching data:', error);
-            }
-        }
+      updateTable(filteredData);
+    }
 
-        function applyFilters() {
-            let filteredData = [...originalData];
+    function updateTable(data) {
+      let tableHtml = `
+        <table class="data">
+          <thead>
+            <tr>
+              ${generateTableHeaders()}
+            </tr>
+          </thead>
+          <tbody>
+      `;
 
-            // 価格変化率
-            if (filters.priceChangeRate === 'positive') {
-                filteredData = filteredData.filter(row => row.price_change_rate >= 0);
-            } else if (filters.priceChangeRate === 'negative') {
-                filteredData = filteredData.filter(row => row.price_change_rate < 0);
-            }
+      data.forEach(row => {
+        tableHtml += `
+          <tr>
+            <td>${row.symbol}</td>
+            <td>${row.timestamp}</td>
+            <td>${row.close}</td>
+            <td>${row.volume}</td>
+            <td>${row.openInterest}</td>
+            <td class="${row.price_change_rate >= 0 ? 'positive' : 'negative'}">
+              ${row.price_change_rate}%
+            </td>
+            <td class="${row.volume_change_rate >= 0 ? 'positive' : 'negative'}">
+              ${row.volume_change_rate}%
+            </td>
+            <td class="${row.oi_change_rate >= 0 ? 'positive' : 'negative'}">
+              ${row.oi_change_rate}%
+            </td>
+          </tr>
+        `;
+      });
 
-            // 出来高変化率
-            if (filters.volumeChangeRate === 'positive') {
-                filteredData = filteredData.filter(row => row.volume_change_rate >= 0);
-            } else if (filters.volumeChangeRate === 'negative') {
-                filteredData = filteredData.filter(row => row.volume_change_rate < 0);
-            }
+      tableHtml += '</tbody></table>';
+      tableContainer.innerHTML = tableHtml;
+    }
 
-            // OI変化率
-            if (filters.oiChangeRate === 'positive') {
-                filteredData = filteredData.filter(row => row.oi_change_rate >= 0);
-            } else if (filters.oiChangeRate === 'negative') {
-                filteredData = filteredData.filter(row => row.oi_change_rate < 0);
-            }
+    function generateTableHeaders() {
+      return columns.map(column => `
+        <th data-column="${column.name}" onclick="sortTable('${column.name}')">
+          ${column.label}
+          ${currentSort.column === column.name ? (currentSort.order === 'asc' ? '▲' : '▼') : ''}
+        </th>
+      `).join('');
+    }
 
-            // シンボル検索
-            if (filters.symbolSearch) {
-                filteredData = filteredData.filter(row =>
-                    row.symbol.toLowerCase().includes(filters.symbolSearch.toLowerCase())
-                );
-            }
+    // 列クリックでソート
+    function sortTable(column) {
+      if (currentSort.column === column) {
+        currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSort.column = column;
+        currentSort.order = 'asc';
+      }
+      applyFilters();
+    }
 
-            // ソート
-            if (currentSort.column) {
-                filteredData.sort((a, b) => {
-                    if (currentSort.order === 'asc') {
-                        return a[currentSort.column] > b[currentSort.column] ? 1 : -1;
-                    } else {
-                        return a[currentSort.column] < b[currentSort.column] ? 1 : -1;
-                    }
-                });
-            }
+    clearFiltersButton.addEventListener('click', () => {
+      filters = {
+        priceChangeRate: null,
+        volumeChangeRate: null,
+        oiChangeRate: null,
+        symbolSearch: '',
+      };
+      Object.values(conditionButtons).forEach(button => button.classList.remove('active'));
+      symbolSearch.value = '';
+      applyFilters();
+    });
 
-            updateTable(filteredData);
-        }
+    Object.keys(conditionButtons).forEach(key => {
+      const button = conditionButtons[key];
+      button.addEventListener('click', () => {
+        const type = key.includes('Positive') ? 'positive' : 'negative';
+        // key: "pricePositive" -> filters.priceChangeRate
+        const filterKey = key.replace(/(price|volume|oi)(Positive|Negative)/, '$1ChangeRate');
+        filters[filterKey] = filters[filterKey] === type ? null : type;
+        button.classList.toggle('active', filters[filterKey] === type);
+        applyFilters();
+      });
+    });
 
-        function updateTable(data) {
-            let tableHtml = `
-                <table class="data">
-                    <thead>
-                        <tr>
-                            ${generateTableHeaders()}
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-            data.forEach(row => {
-                tableHtml += `
-                    <tr>
-                        <td>${row.symbol}</td>
-                        <td>${row.timestamp}</td>
-                        <td>${row.open}</td>
-                        <td>${row.high}</td>
-                        <td>${row.low}</td>
-                        <td>${row.close}</td>
-                        <td>${row.volume}</td>
-                        <td>${row.openInterest}</td>
-                        <td class="${row.price_change_rate >= 0 ? 'positive' : 'negative'}">
-                            ${row.price_change_rate}%
-                        </td>
-                        <td class="${row.volume_change_rate >= 0 ? 'positive' : 'negative'}">
-                            ${row.volume_change_rate}%
-                        </td>
-                        <td class="${row.oi_change_rate >= 0 ? 'positive' : 'negative'}">
-                            ${row.oi_change_rate}%
-                        </td>
-                    </tr>
-                `;
-            });
-            tableHtml += '</tbody></table>';
-            tableContainer.innerHTML = tableHtml;
-        }
+    symbolSearch.addEventListener('input', e => {
+      filters.symbolSearch = e.target.value;
+      applyFilters();
+    });
 
-        function generateTableHeaders() {
-            const columns = [
-                { name: 'symbol', label: 'Symbol' },
-                { name: 'timestamp', label: 'Timestamp' },
-                { name: 'open', label: 'Open' },
-                { name: 'high', label: 'High' },
-                { name: 'low', label: 'Low' },
-                { name: 'close', label: 'Close' },
-                { name: 'volume', label: 'Volume' },
-                { name: 'openInterest', label: 'Open Interest' },
-                { name: 'price_change_rate', label: '価格変動' },
-                { name: 'volume_change_rate', label: '出来高変化率' },
-                { name: 'oi_change_rate', label: 'OI変化率' },
-            ];
-
-            return columns.map(column => `
-                <th data-column="${column.name}" onclick="sortTable('${column.name}')">
-                    ${column.label} 
-                    ${currentSort.column === column.name ? (currentSort.order === 'asc' ? '▲' : '▼') : ''}
-                </th>
-            `).join('');
-        }
-
-        function sortTable(column) {
-            if (currentSort.column === column) {
-                currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
-            } else {
-                currentSort.column = column;
-                currentSort.order = 'asc';
-            }
-            applyFilters();
-        }
-
-        clearFiltersButton.addEventListener('click', () => {
-            filters = {
-                priceChangeRate: null,
-                volumeChangeRate: null,
-                oiChangeRate: null,
-                symbolSearch: '',
-            };
-            Object.values(conditionButtons).forEach(button => button.classList.remove('active'));
-            symbolSearch.value = '';
-            applyFilters();
-        });
-
-        Object.keys(conditionButtons).forEach(key => {
-            const button = conditionButtons[key];
-            button.addEventListener('click', () => {
-                const type = key.includes('Positive') ? 'positive' : 'negative';
-                // "pricePositive" → priceChangeRate, など正しくマッピング
-                filters[key.replace(/(price|volume|oi)(Positive|Negative)/, '$1ChangeRate')] =
-                    filters[key.replace(/(price|volume|oi)(Positive|Negative)/, '$1ChangeRate')] === type ? null : type;
-                button.classList.toggle('active',
-                    filters[key.replace(/(price|volume|oi)(Positive|Negative)/, '$1ChangeRate')] === type
-                );
-                applyFilters();
-            });
-        });
-
-        symbolSearch.addEventListener('input', e => {
-            filters.symbolSearch = e.target.value;
-            applyFilters();
-        });
-
-        // ページ読み込み時に最新データを取得
-        fetchLatestData();
-    </script>
+    // ページロード時に自動でデータ取得
+    fetchLatestData();
+  </script>
 </body>
 </html>
