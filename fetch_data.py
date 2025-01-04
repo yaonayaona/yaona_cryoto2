@@ -8,23 +8,27 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Bybit Futures API endpoints
 BASE_URL_KLINE = "https://api.bybit.com/v5/market/kline"
 BASE_URL_OI = "https://api.bybit.com/v5/market/open-interest"
-SYMBOLS_URL = "https://api.bybit.com/v5/market/instruments-info"
+BASE_URL_SYMBOLS = "https://api.bybit.com/v5/market/instruments-info"
+BASE_URL_FUNDING_HISTORY = "https://api.bybit.com/v5/market/funding/history"
 
-# 最小限のUser-Agentを送る（パブリックAPIのみ使用）
+# パブリックAPI用の最小限のUser-Agent
 HEADERS = {
     "User-Agent": "my-simple-script/1.0"
 }
 
 print("Request Headers:", HEADERS)
 
-# USDT建ての先物銘柄を取得
+# --------------------------------------------------------------------
+# 1. 全USDT建て先物シンボルを取得
+# --------------------------------------------------------------------
 def fetch_all_symbols(category="linear"):
     try:
         params = {"category": category}
-        response = requests.get(SYMBOLS_URL, params=params, headers=HEADERS)
+        response = requests.get(BASE_URL_SYMBOLS, params=params, headers=HEADERS)
         response.raise_for_status()
         print("HTTPステータスコード:", response.status_code)
         data = response.json()
+
         symbols = [
             item["symbol"] for item in data.get("result", {}).get("list", [])
             if item.get("symbol", "").endswith("USDT")
@@ -34,7 +38,9 @@ def fetch_all_symbols(category="linear"):
         print(f"Error fetching symbols: {e}")
         return []
 
-# Klineデータ取得 (2時間分 = 15分足で最大8本)
+# --------------------------------------------------------------------
+# 2. Kline取得（15分足）
+# --------------------------------------------------------------------
 def get_kline_data(symbol, interval, start_time, end_time):
     try:
         params = {
@@ -52,11 +58,12 @@ def get_kline_data(symbol, interval, start_time, end_time):
         print(f"Error fetching Kline data for {symbol}: {e}")
         return []
 
-# Open Interestデータ取得
+# --------------------------------------------------------------------
+# 3. Open Interest取得
+# --------------------------------------------------------------------
 def get_open_interest_history(symbol, interval_time="15min"):
     try:
         end_time = datetime.now(timezone.utc)
-        # ここは1時間でも十分ですが、合わせて2時間にしてもOK
         start_time = end_time - timedelta(minutes=120)
         params = {
             "symbol": symbol,
@@ -81,19 +88,58 @@ def get_open_interest_history(symbol, interval_time="15min"):
         print(f"Error fetching OI data for {symbol}: {e}")
         return None
 
-# 1銘柄分のデータを取得
+# --------------------------------------------------------------------
+# 4. 履歴ファンディングレート取得 (bybit v5 /v5/market/history-fund-rate)
+# --------------------------------------------------------------------
+def get_funding_rate(symbol):
+    """
+    過去48時間の 8H ごとのファンディングレートを取得し、
+    もっとも新しいレートを返す。
+    """
+    try:
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(hours=48)
+
+        params = {
+            "category": "linear",
+            "symbol": symbol,
+            "intervalTime": "8h",  # ファンディングレートは通常8時間ごと
+            "start": int(start_time.timestamp() * 1000),
+            "end": int(end_time.timestamp() * 1000),
+            "limit": 200
+        }
+        response = requests.get(BASE_URL_FUNDING_HISTORY, params=params, headers=HEADERS)
+        response.raise_for_status()
+        data = response.json()
+
+        # 昇順で並んでいるので末尾が最新
+        funding_list = data.get("result", {}).get("list", [])
+        if not funding_list:
+            return 0.0
+
+        latest_item = funding_list[-1]  # 最新の1件
+        funding_str = latest_item.get("fundingRate", "0.0")
+        return float(funding_str)
+    except Exception as e:
+        print(f"Error fetching funding rate for {symbol}: {e}")
+        return 0.0
+
+# --------------------------------------------------------------------
+# 5. 1銘柄のデータ取得 (Kline / OI / 最新ファンディング)
+# --------------------------------------------------------------------
 def fetch_data_for_symbol(symbol, interval):
     try:
         end_time = datetime.now(timezone.utc)
-        # 15分足で8本 = 2時間取得
         start_time = end_time - timedelta(minutes=120)
+
         kline_data = get_kline_data(symbol, interval, start_time, end_time)
-        oi_data = get_open_interest_history(symbol, interval_time=interval + "min")  # "15min" のまま
+        oi_data = get_open_interest_history(symbol, interval_time=interval + "min")
+        funding_rate = get_funding_rate(symbol)
 
         if not kline_data:
             return None
 
-        # KlineをDataFrame化
+        # Kline DataFrame
         kline_df = pd.DataFrame([
             {
                 "symbol": symbol,
@@ -102,25 +148,32 @@ def fetch_data_for_symbol(symbol, interval):
                 "high": float(entry[2]),
                 "low": float(entry[3]),
                 "close": float(entry[4]),
-                "volume": float(entry[5])
+                "volume": float(entry[5]),
+                "fundingRate": funding_rate  # 全行に同じ最新レートを付与
             }
             for entry in kline_data
         ])
 
-        # OIデータがあればマージ
         if oi_data is not None:
-            return pd.merge(kline_df, oi_data, on="timestamp", how="left").fillna(0)
+            merged_df = pd.merge(kline_df, oi_data, on="timestamp", how="left").fillna(0)
+            return merged_df
+
         return kline_df
+
     except Exception as e:
         print(f"Error processing symbol {symbol}: {e}")
         return None
 
-# 全銘柄を並列で取得
+# --------------------------------------------------------------------
+# 6. 全銘柄を並列で取得 (max_workers=50)
+# --------------------------------------------------------------------
 def fetch_data_parallel(symbols, interval):
     all_data = []
-    # スレッドプール数を50に変更
-    with ThreadPoolExecutor(max_workers=50) as executor:
-        future_to_symbol = {executor.submit(fetch_data_for_symbol, symbol, interval): symbol for symbol in symbols}
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_symbol = {
+            executor.submit(fetch_data_for_symbol, symbol, interval): symbol
+            for symbol in symbols
+        }
         for future in as_completed(future_to_symbol):
             try:
                 data = future.result()
@@ -128,9 +181,15 @@ def fetch_data_parallel(symbols, interval):
                     all_data.append(data)
             except Exception as e:
                 print(f"Error fetching data for {future_to_symbol[future]}: {e}")
+
     return pd.concat(all_data, ignore_index=True) if all_data else pd.DataFrame()
 
-# データ要約（出来高変化率＝短期移動平均(4本)）
+# --------------------------------------------------------------------
+# 7. データ要約
+#    - 価格変化率/ OI変化率: 直近4本
+#    - 出来高変化率: 直近8本(後4本 vs 前4本) のMA
+#    - funding_rate: 最新行に入っている "fundingRate" を採用
+# --------------------------------------------------------------------
 def summarize_data_with_latest(data):
     try:
         summary = []
@@ -143,37 +202,41 @@ def summarize_data_with_latest(data):
             # 最新行
             latest = group.iloc[-1]
 
-            # 価格変化率＆OI変化率: 直近4本で計算
+            # 価格/OIは直近4本
             recent_4 = group.tail(4).reset_index(drop=True)
             if len(recent_4) < 4:
                 continue
 
-            # 価格変化率 (従来どおり)
+            # 価格変化率
             if recent_4["close"].iloc[0] > 0:
-                price_change_rate = (recent_4["close"].iloc[-1] - recent_4["close"].iloc[0]) \
-                                    / recent_4["close"].iloc[0] * 100
+                price_change_rate = (
+                    (recent_4["close"].iloc[-1] - recent_4["close"].iloc[0])
+                    / recent_4["close"].iloc[0] * 100
+                )
             else:
                 price_change_rate = 0
 
-            # OI変化率 (従来どおり)
+            # OI変化率
             if "openInterest" in recent_4.columns and recent_4["openInterest"].iloc[0] > 0:
-                oi_change_rate = (recent_4["openInterest"].iloc[-1] - recent_4["openInterest"].iloc[0]) \
-                                 / recent_4["openInterest"].iloc[0] * 100
+                oi_change_rate = (
+                    (recent_4["openInterest"].iloc[-1] - recent_4["openInterest"].iloc[0])
+                    / recent_4["openInterest"].iloc[0] * 100
+                )
             else:
                 oi_change_rate = 0
 
-            # 出来高変化率 (短期MA: 直近8本が必要)
-            # 後ろ4本の平均と、その前4本の平均を比べる
+            # 出来高変化率(直近8本でのMA比較)
             recent_8 = group.tail(8).reset_index(drop=True)
             if len(recent_8) < 8:
-                # 8本ない場合はスキップ
                 continue
-
-            vol_ma_new = recent_8["volume"].iloc[-4:].mean()  # 後半4本のMA
-            vol_ma_old = recent_8["volume"].iloc[:4].mean()   # 前半4本のMA
+            vol_ma_new = recent_8["volume"].iloc[-4:].mean()
+            vol_ma_old = recent_8["volume"].iloc[:4].mean()
             volume_change_rate = 0
             if vol_ma_old > 0:
                 volume_change_rate = (vol_ma_new - vol_ma_old) / vol_ma_old * 100
+
+            # ファンディングレート (最新行に同一値が入っている想定)
+            funding_rate = latest.get("fundingRate", 0)
 
             summary.append({
                 "symbol": symbol,
@@ -184,6 +247,7 @@ def summarize_data_with_latest(data):
                 "close": latest["close"],
                 "volume": latest["volume"],
                 "openInterest": latest.get("openInterest", 0),
+                "funding_rate": round(funding_rate, 6),
                 "price_change_rate": round(price_change_rate, 3),
                 "volume_change_rate": round(volume_change_rate, 3),
                 "oi_change_rate": round(oi_change_rate, 3)
@@ -194,7 +258,9 @@ def summarize_data_with_latest(data):
         print(f"Error summarizing data: {e}")
         return pd.DataFrame()
 
-# メイン処理
+# --------------------------------------------------------------------
+# 8. メイン処理
+# --------------------------------------------------------------------
 if __name__ == "__main__":
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
