@@ -31,7 +31,6 @@
             width: 300px;
             font-size: 16px;
             margin: 5px;
-            max-width: 90%; /* スマホで画面幅を超えないように */
         }
         .filter-button {
             padding: 8px 16px;
@@ -62,35 +61,19 @@
         .update-button:hover {
             background-color: #0056b3;
         }
-        .condition-buttons {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin: 20px 0;
-        }
-        .table-container {
-            /* 幅を100%にしてスマホ時のはみ出しを制御 */
-            width: 100%;
-            margin: 20px auto;
-            overflow-x: auto;
-        }
         .data {
+            margin: 20px auto;
+            width: 90%;
             border-collapse: collapse;
-            table-layout: fixed; /* 固定レイアウト */
-            min-width: 800px;    /* カラム幅確保のため、必要に応じて調整 */
-            width: 100%;
+            table-layout: fixed;
         }
         .data th, .data td {
             border: 1px solid #444;
             padding: 8px 12px;
             text-align: center;
-            /* 必要に応じて折り返し表示: */
-            /* white-space: normal; 
-               overflow-wrap: break-word; */
-            /* デフォルトは折り返さない: */
-            white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .data th {
             background-color: #444;
@@ -118,30 +101,16 @@
         .neutral {
             color: #ffffff;
         }
-
-        /* スマホなど画面幅が小さい場合の調整 */
-        @media (max-width: 600px) {
-            h1 {
-                font-size: 1.2em;
-                margin: 10px 0;
-            }
-            .search-bar {
-                font-size: 14px;
-            }
-            .filter-button,
-            .update-button {
-                font-size: 14px;
-                padding: 6px 10px;
-                margin: 5px;
-            }
-            /* テーブル内のフォントサイズを小さく */
-            .data th, .data td {
-                font-size: 14px;
-                padding: 6px 8px;
-            }
-            .table-container {
-                margin: 10px auto;
-            }
+        .condition-buttons {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        .table-container {
+            margin: 20px auto;
+            width: 90%;
+            overflow-x: auto;
         }
     </style>
 </head>
@@ -153,7 +122,6 @@
         <button id="clear-filters" class="filter-button">Clear</button>
     </div>
     <button id="fetch-data" class="update-button">データ更新</button>
-
     <div class="condition-buttons">
         <button id="price-positive" class="filter-button">価格変化 ≧ 0</button>
         <button id="price-negative" class="filter-button">価格変化 ＜ 0</button>
@@ -162,9 +130,8 @@
         <button id="oi-positive" class="filter-button">OI変化 ≧ 0</button>
         <button id="oi-negative" class="filter-button">OI変化 ＜ 0</button>
     </div>
-
     <div class="table-container" id="table-container">
-        <!-- テーブルはJSで動的に生成されます -->
+        <!-- テーブルは動的に生成されます -->
     </div>
 
     <script>
@@ -214,9 +181,6 @@
                 }
                 originalData = await response.json();
                 applyFilters();
-                // 更新日時を表示（例）
-                const now = new Date().toLocaleString();
-                lastUpdated.textContent = `Last Updated: ${now}`;
             } catch (error) {
                 console.error('Error fetching data:', error);
             }
@@ -225,35 +189,30 @@
         function applyFilters() {
             let filteredData = [...originalData];
 
-            // 価格変化率
             if (filters.priceChangeRate === 'positive') {
                 filteredData = filteredData.filter(row => row.price_change_rate >= 0);
             } else if (filters.priceChangeRate === 'negative') {
                 filteredData = filteredData.filter(row => row.price_change_rate < 0);
             }
 
-            // 出来高変化率
             if (filters.volumeChangeRate === 'positive') {
                 filteredData = filteredData.filter(row => row.volume_change_rate >= 0);
             } else if (filters.volumeChangeRate === 'negative') {
                 filteredData = filteredData.filter(row => row.volume_change_rate < 0);
             }
 
-            // OI変化率
             if (filters.oiChangeRate === 'positive') {
                 filteredData = filteredData.filter(row => row.oi_change_rate >= 0);
             } else if (filters.oiChangeRate === 'negative') {
                 filteredData = filteredData.filter(row => row.oi_change_rate < 0);
             }
 
-            // シンボル検索
             if (filters.symbolSearch) {
                 filteredData = filteredData.filter(row =>
                     row.symbol.toLowerCase().includes(filters.symbolSearch.toLowerCase())
                 );
             }
 
-            // ソート
             if (currentSort.column) {
                 filteredData.sort((a, b) => {
                     if (currentSort.order === 'asc') {
@@ -288,15 +247,9 @@
                         <td>${row.close}</td>
                         <td>${row.volume}</td>
                         <td>${row.openInterest}</td>
-                        <td class="${row.price_change_rate >= 0 ? 'positive' : 'negative'}">
-                            ${row.price_change_rate}%
-                        </td>
-                        <td class="${row.volume_change_rate >= 0 ? 'positive' : 'negative'}">
-                            ${row.volume_change_rate}%
-                        </td>
-                        <td class="${row.oi_change_rate >= 0 ? 'positive' : 'negative'}">
-                            ${row.oi_change_rate}%
-                        </td>
+                        <td class="${row.price_change_rate >= 0 ? 'positive' : 'negative'}">${row.price_change_rate}%</td>
+                        <td class="${row.volume_change_rate >= 0 ? 'positive' : 'negative'}">${row.volume_change_rate}%</td>
+                        <td class="${row.oi_change_rate >= 0 ? 'positive' : 'negative'}">${row.oi_change_rate}%</td>
                     </tr>
                 `;
             });
@@ -353,12 +306,8 @@
             const button = conditionButtons[key];
             button.addEventListener('click', () => {
                 const type = key.includes('Positive') ? 'positive' : 'negative';
-                // "pricePositive" → priceChangeRate, など正しくマッピング
-                filters[key.replace(/(price|volume|oi)(Positive|Negative)/, '$1ChangeRate')] =
-                    filters[key.replace(/(price|volume|oi)(Positive|Negative)/, '$1ChangeRate')] === type ? null : type;
-                button.classList.toggle('active',
-                    filters[key.replace(/(price|volume|oi)(Positive|Negative)/, '$1ChangeRate')] === type
-                );
+                filters[key.replace(/(price|volume|oi)(Positive|Negative)/, '$1ChangeRate')] = filters[key.replace(/(price|volume|oi)(Positive|Negative)/, '$1ChangeRate')] === type ? null : type;
+                button.classList.toggle('active', filters[key.replace(/(price|volume|oi)(Positive|Negative)/, '$1ChangeRate')] === type);
                 applyFilters();
             });
         });
@@ -368,7 +317,6 @@
             applyFilters();
         });
 
-        // ページ読み込み時に最新データを取得
         fetchLatestData();
     </script>
 </body>
