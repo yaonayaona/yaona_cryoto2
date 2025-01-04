@@ -21,6 +21,9 @@ HEADERS = {
     "X-BYBIT-API-KEY": API_KEY
 }
 
+# ヘッダーをログ出力
+print("Request Headers:", HEADERS)
+
 # Fetch all USDT perpetual futures symbols
 def fetch_all_symbols(category="linear"):
     try:
