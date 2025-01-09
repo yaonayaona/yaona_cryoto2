@@ -18,12 +18,11 @@
       margin: 20px 0;
     }
 
-    /* 「Last Updated」と「Timestamp」を同じ行にまとめる */
     .update-info {
       display: flex;
       justify-content: center;
       align-items: center;
-      gap: 15px; /* ラベル同士の間隔 */
+      gap: 15px;
       margin-bottom: 10px;
       font-size: 14px;
       color: #aaaaaa;
@@ -36,7 +35,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      gap: 5px; /* 検索欄とボタンの間隔 */
+      gap: 5px;
       margin-bottom: 20px;
     }
     .search-bar {
@@ -72,6 +71,10 @@
       border-radius: 4px;
       text-align: center;
     }
+    .update-button:disabled {
+      background-color: #666666; /* ボタン無効時の色 */
+      cursor: not-allowed;
+    }
     .update-button:hover {
       background-color: #0056b3;
     }
@@ -86,13 +89,12 @@
     .table-container {
       width: 100%;
       margin: 20px auto;
-      overflow-x: auto; /* 横スクロール */
+      overflow-x: auto;
     }
 
     .data {
       border-collapse: collapse;
       table-layout: fixed;
-      /* 列数が減ったのでそこまで大きくなくてOK。必要に応じて調整 */
       min-width: 600px;
       width: 100%;
     }
@@ -103,27 +105,21 @@
       text-align: center;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap; /* デフォルト: 折り返さない */
+      white-space: nowrap;
     }
-
-    /* 先頭列(SYMBOL)をstickyにし、固定表示 */
     .data th:first-child,
     .data td:first-child {
       position: sticky;
       left: 0;
-      background-color: #444; /* スクロール時に見えやすいよう同系色 */
+      background-color: #444;
       z-index: 2;
     }
-
-    /* Symbolセルは折り返し可能+フォント自動調整 */
     .symbol-cell {
-      white-space: normal;         /* 折り返し有効 */
-      word-wrap: break-word;       /* 長い単語を折り返し */
-      font-size: clamp(10px, 2vw, 16px); 
-      /* 1.2倍ほど拡大: もともと150pxを1.2倍=180px目安 */
+      white-space: normal;
+      word-wrap: break-word;
+      font-size: clamp(10px, 2vw, 16px);
       max-width: 180px;
     }
-
     .data tr:nth-child(even) {
       background-color: #3d3d3d;
     }
@@ -136,6 +132,27 @@
     }
     .negative {
       color: #ff0000;
+    }
+
+    /* プログレスバー */
+    #progress-bar {
+      display: none; /* 初期非表示 */
+      width: 40%;
+      height: 8px;
+      background-color: #aaa;
+      margin: 0 auto;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    #progress-fill {
+      background-color: #00ff00;
+      width: 100%;
+      height: 100%;
+      animation: progressAnim 1s linear infinite;
+    }
+    @keyframes progressAnim {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
     }
 
     @media (max-width: 600px) {
@@ -158,7 +175,6 @@
 <body>
   <h1>Crypto Data Table</h1>
 
-  <!-- 同じ行にするため、.update-info を使う -->
   <div class="update-info">
     <span id="last-updated">Last Updated:</span>
     <span id="latest-timestamp">Timestamp:</span>
@@ -169,19 +185,34 @@
     <button id="clear-filters" class="filter-button">Clear</button>
   </div>
 
+  <!-- プログレスバー表示領域 -->
+  <div id="progress-bar">
+    <div id="progress-fill"></div>
+  </div>
+
   <button id="fetch-data" class="update-button">データ更新</button>
 
   <div class="condition-buttons">
+    <!-- 価格変化率フィルタ -->
     <button id="price-positive" class="filter-button">価格変化 ≧ 0</button>
     <button id="price-negative" class="filter-button">価格変化 ＜ 0</button>
+
+    <!-- 出来高変化率フィルタ -->
     <button id="volume-positive" class="filter-button">出来高 ≧ 0</button>
     <button id="volume-negative" class="filter-button">出来高 ＜ 0</button>
+
+    <!-- OI変化率フィルタ -->
     <button id="oi-positive" class="filter-button">OI変化 ≧ 0</button>
     <button id="oi-negative" class="filter-button">OI変化 ＜ 0</button>
+
+    <!-- ▼ 追加: ファンディングレートフィルタ -->
+    <button id="fr-positive" class="filter-button">FR ≧ 0.0001</button>
+    <button id="fr-negative" class="filter-button">FR ＜ 0.0001</button>
+    <!-- ▲ 追加 -->
   </div>
 
   <div class="table-container" id="table-container">
-    <!-- テーブルはJSで動的に生成される -->
+    <!-- テーブルはJSで動的に生成 -->
   </div>
 
   <script>
@@ -199,18 +230,11 @@
       volumeNegative: document.getElementById('volume-negative'),
       oiPositive: document.getElementById('oi-positive'),
       oiNegative: document.getElementById('oi-negative'),
+      // 追加: ファンディングレート
+      frPositive: document.getElementById('fr-positive'),
+      frNegative: document.getElementById('fr-negative')
     };
 
-    /*
-      テーブルから下記カラムを表示:
-        - symbol
-        - close
-        - volume
-        - price_change_rate
-        - volume_change_rate
-        - oi_change_rate
-      timestamp, openInterest は表示しない（削除）
-    */
     const columns = [
       { name: 'symbol', label: 'Symbol' },
       { name: 'close', label: 'Close' },
@@ -218,6 +242,8 @@
       { name: 'price_change_rate', label: '価格変動' },
       { name: 'volume_change_rate', label: '出来高変化率' },
       { name: 'oi_change_rate', label: 'OI変化率' },
+      // 追加: funding_rate 列の表示
+      { name: 'funding_rate', label: 'FundingRate' },
     ];
 
     let originalData = [];
@@ -225,6 +251,7 @@
       priceChangeRate: null,
       volumeChangeRate: null,
       oiChangeRate: null,
+      fundingRate: null, // 追加: ファンディングレート
       symbolSearch: '',
     };
     let currentSort = { column: null, order: 'asc' };
@@ -232,6 +259,11 @@
     // データ更新
     fetchDataButton.addEventListener('click', async () => {
       try {
+        // ボタン無効化
+        fetchDataButton.disabled = true;
+        // プログレスバー表示
+        document.getElementById('progress-bar').style.display = 'block';
+
         const response = await fetch('/api/fetch', { method: 'POST' });
         if (!response.ok) {
           throw new Error('Error fetching new data');
@@ -241,6 +273,11 @@
       } catch (error) {
         console.error('Error updating data:', error);
         alert('データ更新中にエラーが発生しました。');
+      } finally {
+        // ボタン再度有効化
+        fetchDataButton.disabled = false;
+        // プログレスバー非表示
+        document.getElementById('progress-bar').style.display = 'none';
       }
     });
 
@@ -253,13 +290,12 @@
         }
         originalData = await response.json();
 
-        // とりあえずテーブルを表示
+        // フィルターを適用したテーブルを表示
         applyFilters();
 
         // 現在時刻を表示
         const now = new Date().toLocaleString();
         lastUpdatedSpan.textContent = `Last Updated: ${now}`;
-
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -268,30 +304,45 @@
     function applyFilters() {
       let filteredData = [...originalData];
 
+      // 価格変化率フィルタ
       if (filters.priceChangeRate === 'positive') {
         filteredData = filteredData.filter(row => row.price_change_rate >= 0);
       } else if (filters.priceChangeRate === 'negative') {
         filteredData = filteredData.filter(row => row.price_change_rate < 0);
       }
 
+      // 出来高変化率
       if (filters.volumeChangeRate === 'positive') {
         filteredData = filteredData.filter(row => row.volume_change_rate >= 0);
       } else if (filters.volumeChangeRate === 'negative') {
         filteredData = filteredData.filter(row => row.volume_change_rate < 0);
       }
 
+      // OI変化率
       if (filters.oiChangeRate === 'positive') {
         filteredData = filteredData.filter(row => row.oi_change_rate >= 0);
       } else if (filters.oiChangeRate === 'negative') {
         filteredData = filteredData.filter(row => row.oi_change_rate < 0);
       }
 
+      // ▼追加: ファンディングレート
+      if (filters.fundingRate === 'positive') {
+        // FR >= 0.0001
+        filteredData = filteredData.filter(row => row.funding_rate >= 0.0001);
+      } else if (filters.fundingRate === 'negative') {
+        // FR < 0.0001
+        filteredData = filteredData.filter(row => row.funding_rate < 0.0001);
+      }
+      // ▲追加
+
+      // シンボル検索
       if (filters.symbolSearch) {
         filteredData = filteredData.filter(row =>
           row.symbol.toLowerCase().includes(filters.symbolSearch.toLowerCase())
         );
       }
 
+      // ソート適用
       if (currentSort.column) {
         filteredData.sort((a, b) => {
           if (currentSort.order === 'asc') {
@@ -305,15 +356,12 @@
       updateTable(filteredData);
     }
 
-    // テーブル更新時に、最新Timestampを取得 → 画面上部に表示
+    // テーブル更新時に、最新Timestampを表示
     function updateTable(data) {
-      // 最新Timestampを探す（最大の日付 or 最も大きいtimestamp）
       let latestTimestamp = '';
       if (data.length > 0) {
-        // timestampが文字列として "2025-01-04 12:34:56" のように格納されている想定。
-        // もっと厳密に比較したい場合は、Date.parse() で比較して最大を探す。
+        // timestampが "2025-01-04 12:34:56" のように入っていると想定
         latestTimestamp = data.reduce((acc, row) => {
-          // row.timestampが存在すれば比較
           if (row.timestamp && row.timestamp > acc) {
             return row.timestamp;
           }
@@ -322,7 +370,7 @@
       }
       latestTimestampSpan.textContent = `Timestamp: ${latestTimestamp || 'N/A'}`;
 
-      // テーブル本体を構築
+      // テーブル本体
       let tableHtml = `
         <table class="data">
           <thead>
@@ -347,6 +395,10 @@
             <td class="${row.oi_change_rate >= 0 ? 'positive' : 'negative'}">
               ${row.oi_change_rate}%
             </td>
+            <!-- 追加: ファンディングレート列 -->
+            <td class="${row.funding_rate >= 0.0001 ? 'positive' : 'negative'}">
+              ${row.funding_rate}
+            </td>
           </tr>
         `;
       });
@@ -359,7 +411,7 @@
         .map(column => {
           return `
             <th data-column="${column.name}" onclick="sortTable('${column.name}')">
-              ${column.label} 
+              ${column.label}
               ${
                 currentSort.column === column.name
                   ? currentSort.order === 'asc'
@@ -373,7 +425,7 @@
         .join('');
     }
 
-    function sortTable(column) {
+    window.sortTable = function (column) {
       if (currentSort.column === column) {
         currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
       } else {
@@ -381,31 +433,56 @@
         currentSort.order = 'asc';
       }
       applyFilters();
-    }
+    };
 
     clearFiltersButton.addEventListener('click', () => {
       filters = {
         priceChangeRate: null,
         volumeChangeRate: null,
         oiChangeRate: null,
+        fundingRate: null, // 追加
         symbolSearch: '',
       };
+      // すべてのボタンのactiveをリセット
       Object.values(conditionButtons).forEach(button => button.classList.remove('active'));
       symbolSearch.value = '';
       applyFilters();
     });
 
+    // 各フィルタボタンのクリック処理
     Object.keys(conditionButtons).forEach(key => {
       const button = conditionButtons[key];
       button.addEventListener('click', () => {
-        const type = key.includes('Positive') ? 'positive' : 'negative';
-        const filterKey = key.replace(/(price|volume|oi)(Positive|Negative)/, '$1ChangeRate');
+        let filterKey = null;
+        let type = null;
+
+        // keyを見て、price/volume/oi/fundingRate のどれかを判別
+        if (key.includes('price')) {
+          filterKey = 'priceChangeRate';
+          type = key.includes('Positive') ? 'positive' : 'negative';
+        } else if (key.includes('volume')) {
+          filterKey = 'volumeChangeRate';
+          type = key.includes('Positive') ? 'positive' : 'negative';
+        } else if (key.includes('oi')) {
+          filterKey = 'oiChangeRate';
+          type = key.includes('Positive') ? 'positive' : 'negative';
+        } else if (key.includes('fr')) {
+          // ファンディングレート
+          filterKey = 'fundingRate';
+          type = key.includes('Positive') ? 'positive' : 'negative';
+        }
+
+        // トグル方式: 同じフィルタが連打されたら解除
         filters[filterKey] = filters[filterKey] === type ? null : type;
+
+        // ボタンの active 状態切り替え
         button.classList.toggle('active', filters[filterKey] === type);
+
         applyFilters();
       });
     });
 
+    // シンボル検索
     symbolSearch.addEventListener('input', e => {
       filters.symbolSearch = e.target.value;
       applyFilters();
