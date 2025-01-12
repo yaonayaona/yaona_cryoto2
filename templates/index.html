@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <!-- iPhone等のスマホ対応 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Crypto Data Table (5m / 8bars)</title>
+  <title>Crypto Data Table (5m / 8 bars)</title>
 
   <style>
     /* ベース */
@@ -36,15 +36,15 @@
       white-space: nowrap;
     }
 
-    /* 更新ボタン (5m) */
+    /* データ更新ボタン + カラム選択 */
     .controls {
       display: flex;
-      justify-content: center;
       flex-wrap: wrap;
+      justify-content: center;
       gap: 10px;
       margin-bottom: 12px;
     }
-    .controls .update-button {
+    .update-button {
       background-color: #007bff;
       color: #fff;
       border: none;
@@ -53,11 +53,31 @@
       cursor: pointer;
       font-size: 14px;
     }
-    .controls .update-button:disabled {
+    .update-button:disabled {
       background-color: #666666;
     }
-    .controls .update-button:hover:enabled {
+    .update-button:hover:enabled {
       background-color: #0056b3;
+    }
+
+    /* カラム選択チェックボックス */
+    .column-select {
+      background-color: #3d3d3d;
+      padding: 6px 8px;
+      border: 1px solid #555;
+      border-radius: 4px;
+      font-size: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      align-items: center;
+    }
+    .column-select label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin: 0;
     }
 
     /* 検索+クリア */
@@ -188,19 +208,17 @@
 
     /* レスポンシブ */
     @media (max-width: 600px) {
-      h1 {
-        font-size: 1.2em;
-        margin: 12px 0;
-      }
+      h1 { font-size: 1.2em; margin: 12px 0; }
       .controls {
         gap: 8px;
+        flex-direction: column;
       }
-      .search-container {
-        gap: 6px;
+      .column-select {
+        gap: 4px;
+        font-size: 12px;
       }
-      .condition-buttons {
-        gap: 6px;
-      }
+      .search-container { gap: 6px; }
+      .condition-buttons { gap: 6px; }
       .data th, .data td {
         font-size: 12px;
         padding: 4px 6px;
@@ -217,10 +235,33 @@
     <span id="latest-timestamp">Timestamp:</span>
   </div>
 
-  <!-- 更新ボタン (5m) -->
+  <!-- データ更新ボタン + カラム選択チェックボックス -->
   <div class="controls">
-    <!-- データ更新ボタン (5m) -->
     <button id="fetch-data" class="update-button">5m データ更新</button>
+
+    <!-- カラム選択: デフォルトOFFにしたいものは checkedを外す -->
+    <div class="column-select">
+      <label>
+        <input type="checkbox" class="col-toggle" data-col="volume" />
+        Volume
+      </label>
+      <label>
+        <input type="checkbox" class="col-toggle" data-col="funding_rate" />
+        Funding
+      </label>
+      <label>
+        <input type="checkbox" class="col-toggle" data-col="openInterest" />
+        OI
+      </label>
+      <label>
+        <input type="checkbox" class="col-toggle" data-col="volume_spike_flag" />
+        VolSpike
+      </label>
+      <label>
+        <input type="checkbox" class="col-toggle" data-col="small_price_move_flag" />
+        SmallPrice
+      </label>
+    </div>
   </div>
 
   <!-- 検索＆クリア -->
@@ -236,23 +277,18 @@
 
   <!-- フィルタボタン群 -->
   <div class="condition-buttons">
-    <!-- 価格変化率フィルタ -->
     <button id="price-positive" class="filter-button">価格変化 ≧ 0</button>
     <button id="price-negative" class="filter-button">価格変化 ＜ 0</button>
 
-    <!-- 出来高変化率フィルタ -->
     <button id="volume-positive" class="filter-button">出来高 ≧ 0</button>
     <button id="volume-negative" class="filter-button">出来高 ＜ 0</button>
 
-    <!-- OI変化率フィルタ -->
     <button id="oi-positive" class="filter-button">OI変化 ≧ 0</button>
     <button id="oi-negative" class="filter-button">OI変化 ＜ 0</button>
 
-    <!-- ファンディングレートフィルタ -->
     <button id="fr-positive" class="filter-button">FR ≧ 0.0001</button>
     <button id="fr-negative" class="filter-button">FR ＜ 0.0001</button>
 
-    <!-- 出来高スパイク & 小動き -->
     <button id="volume-spike" class="filter-button">VolumeSpike</button>
     <button id="small-price" class="filter-button">SmallPrice</button>
   </div>
@@ -261,38 +297,42 @@
   <div class="table-container" id="table-container"></div>
 
   <script>
-    // =============== カラム定義 ===============
-    // fetch_data.py の summarize_data_8bars で出力:
-    //   price_change_rate, volume_change_rate, oi_change_rate
-    //   volume_spike_flag
-    //   small_price_move_flag（必要ならサマリ側で実装）
-    // 
-    // ここでは 5m,8本で "price_change_rate" / "volume_change_rate" / "oi_change_rate" として受け取る
-    const columns = [
-      { key: 'symbol',         label: 'Symbol' },
-      { key: 'close',          label: 'Close' },
-      { key: 'volume',         label: 'Volume' },
-      { key: 'funding_rate',   label: 'FundingRate' },
-      { key: 'openInterest',   label: 'OpenInt' },
-      // 変化率(単一)
-      { key: 'price_change_rate',  label: '価格変動' },
-      { key: 'volume_change_rate', label: '出来高変動' },
-      { key: 'oi_change_rate',     label: 'OI変動' },
-      // フラグ
-      { key: 'volume_spike_flag',  label: 'VolSpike' },
-      { key: 'small_price_move_flag', label: 'SmallPrice' }
+    // **************** カラム定義 ****************
+    // デフォルト必須表示: symbol, close, price_change_rate, volume_change_rate, oi_change_rate
+    // チェックボックスでON/OFFできる: volume, funding_rate, openInterest, volume_spike_flag, small_price_move_flag
+
+    // ここでは "enabled" フィールドを用いて、初期状態をON/OFFにしてもいいが
+    // 今回は "volume" などはデフォルトOFF → checkBox 未checked
+    // "close" / "price_change_rate" / "volume_change_rate" / "oi_change_rate" はデフォルトON (必須)
+
+    // 1) 必須表示カラム
+    const mandatoryColumns = [
+      { key: 'symbol', label: 'Symbol', isMandatory: true },
+      { key: 'close',  label: 'Close',  isMandatory: true },
+      { key: 'price_change_rate',  label: '価格変動', isMandatory: true },
+      { key: 'volume_change_rate', label: '出来高変動', isMandatory: true },
+      { key: 'oi_change_rate',     label: 'OI変動',   isMandatory: true },
     ];
 
-    // 要素取得
-    const fetchDataButton = document.getElementById('fetch-data');
-    const progressBar = document.getElementById('progress-bar');
+    // 2) オプションカラム (デフォルトOFF)
+    const optionalColumns = [
+      { key: 'volume',             label: 'Volume' },
+      { key: 'funding_rate',       label: 'Funding' },
+      { key: 'openInterest',       label: 'OI' },
+      { key: 'volume_spike_flag',  label: 'VolSpike' },
+      { key: 'small_price_move_flag', label: 'SmallPrice' },
+    ];
 
-    const symbolSearch = document.getElementById('symbol-search');
+    // **************** 要素取得 ****************
+    const fetchDataButton = document.getElementById('fetch-data');
+    const progressBar     = document.getElementById('progress-bar');
+
+    const symbolSearch    = document.getElementById('symbol-search');
     const clearFiltersButton = document.getElementById('clear-filters');
 
     const lastUpdatedSpan = document.getElementById('last-updated');
     const latestTimestampSpan = document.getElementById('latest-timestamp');
-    const tableContainer = document.getElementById('table-container');
+    const tableContainer  = document.getElementById('table-container');
 
     const conditionButtons = {
       pricePositive: document.getElementById('price-positive'),
@@ -307,9 +347,12 @@
       smallPrice:   document.getElementById('small-price'),
     };
 
-    // 状態変数
+    // チェックボックス
+    const columnCheckboxes = document.querySelectorAll('.col-toggle');
+
+    // **************** 状態変数 ****************
     let originalData = [];
-    let currentSort = { column: null, order: 'asc' };
+    let currentSort  = { column: null, order: 'asc' };
     let filters = {
       priceChangeRate: null,
       volumeChangeRate: null,
@@ -320,18 +363,16 @@
       smallPrice: null
     };
 
-    // =============== データ取得(5m) ===============
+    // **************** データ取得 (5m固定) ****************
     async function fetchData() {
       try {
-        // サーバー側では "/api/data?tf=5m" → latest_summary_5m.csv
-        const url = `/api/data?tf=5m`;
+        const url = `/api/data?tf=5m`; // 5m CSV
         const resp = await fetch(url);
-        if (!resp.ok) {
-          throw new Error('Failed to fetch data for 5m');
-        }
+        if (!resp.ok) throw new Error('Error fetching 5m data');
+
         originalData = await resp.json();
 
-        // 更新時刻
+        // 更新日時
         const now = new Date().toLocaleString();
         lastUpdatedSpan.textContent = `Last Updated: ${now}`;
 
@@ -342,29 +383,29 @@
       }
     }
 
-    // =============== フィルタ適用 ===============
+    // **************** フィルタ適用 ****************
     function applyFilters() {
       let filtered = [...originalData];
 
-      // 価格変化率
+      // price_change_rate
       if (filters.priceChangeRate === 'positive') {
         filtered = filtered.filter(r => r.price_change_rate >= 0);
       } else if (filters.priceChangeRate === 'negative') {
         filtered = filtered.filter(r => r.price_change_rate < 0);
       }
-      // 出来高変化率
+      // volume_change_rate
       if (filters.volumeChangeRate === 'positive') {
         filtered = filtered.filter(r => r.volume_change_rate >= 0);
       } else if (filters.volumeChangeRate === 'negative') {
         filtered = filtered.filter(r => r.volume_change_rate < 0);
       }
-      // OI変化率
+      // oi_change_rate
       if (filters.oiChangeRate === 'positive') {
         filtered = filtered.filter(r => r.oi_change_rate >= 0);
       } else if (filters.oiChangeRate === 'negative') {
         filtered = filtered.filter(r => r.oi_change_rate < 0);
       }
-      // FundingRate
+      // fundingRate
       if (filters.fundingRate === 'positive') {
         filtered = filtered.filter(r => r.funding_rate >= 0.0001);
       } else if (filters.fundingRate === 'negative') {
@@ -383,23 +424,21 @@
         const term = filters.symbolSearch.toLowerCase();
         filtered = filtered.filter(r => r.symbol.toLowerCase().includes(term));
       }
+
       // ソート
       if (currentSort.column) {
         filtered.sort((a, b) => {
           const valA = a[currentSort.column];
           const valB = b[currentSort.column];
-          if (currentSort.order === 'asc') {
-            return valA > valB ? 1 : -1;
-          } else {
-            return valA < valB ? 1 : -1;
-          }
+          if (currentSort.order === 'asc') return valA > valB ? 1 : -1;
+          else return valA < valB ? 1 : -1;
         });
       }
 
       renderTable(filtered);
     }
 
-    // =============== テーブル描画 ===============
+    // **************** テーブル描画 ****************
     function renderTable(data) {
       // 最新Timestamp
       let latestTS = '';
@@ -411,16 +450,32 @@
       }
       latestTimestampSpan.textContent = `Timestamp: ${latestTS || 'N/A'}`;
 
-      // カラム
+      // 1) 必須カラム(常に表示)
+      const mandatoryCols = mandatoryColumns;
+
+      // 2) オプションカラム(チェックされているものだけ表示)
+      const enabledOptionalCols = [];
+      optionalColumns.forEach(col => {
+        // 該当のcheckboxが checkedなら追加
+        const checkbox = document.querySelector(`.col-toggle[data-col="${col.key}"]`);
+        if (checkbox && checkbox.checked) {
+          enabledOptionalCols.push(col);
+        }
+      });
+
+      const allCols = [...mandatoryCols, ...enabledOptionalCols];
+
       let html = `
         <table class="data">
           <thead>
             <tr>
-              ${columns.map(col => {
+              ${allCols.map(col => {
                 const sortIndicator = (currentSort.column === col.key)
                   ? (currentSort.order === 'asc' ? '▲' : '▼')
                   : '';
-                return `<th onclick="sortTable('${col.key}')">${col.label} ${sortIndicator}</th>`;
+                return `<th onclick="sortTable('${col.key}')">
+                  ${col.label} ${sortIndicator}
+                </th>`;
               }).join('')}
             </tr>
           </thead>
@@ -428,35 +483,36 @@
       `;
       data.forEach(row => {
         html += '<tr>';
-        columns.forEach(c => {
-          const val = row[c.key];
-          if (c.key === 'symbol') {
+        allCols.forEach(col => {
+          const val = row[col.key];
+          if (col.key === 'symbol') {
             html += `<td class="symbol-cell">${val}</td>`;
           }
-          else if (c.key === 'price_change_rate' ||
-                   c.key === 'volume_change_rate' ||
-                   c.key === 'oi_change_rate') {
+          else if (col.key === 'price_change_rate' ||
+                   col.key === 'volume_change_rate' ||
+                   col.key === 'oi_change_rate') {
             html += `<td class="${val >= 0 ? 'positive' : 'negative'}">${val}%</td>`;
           }
-          else if (c.key === 'funding_rate') {
+          else if (col.key === 'funding_rate') {
             const cls = (val >= 0.0001) ? 'positive' : 'negative';
             html += `<td class="${cls}">${val}</td>`;
           }
-          else if (c.key === 'volume_spike_flag' || c.key === 'small_price_move_flag') {
+          else if (col.key === 'volume_spike_flag' || col.key === 'small_price_move_flag') {
+            // boolean
             html += `<td>${val ? 'Yes' : 'No'}</td>`;
           }
           else {
+            // e.g. volume, openInterest
             html += `<td>${val}</td>`;
           }
         });
         html += '</tr>';
       });
-
       html += '</tbody></table>';
       tableContainer.innerHTML = html;
     }
 
-    // =============== ソート関数 ===============
+    // **************** ソート関数 ****************
     window.sortTable = function(colKey) {
       if (currentSort.column === colKey) {
         currentSort.order = (currentSort.order === 'asc') ? 'desc' : 'asc';
@@ -467,17 +523,14 @@
       applyFilters();
     };
 
-    // =============== イベント各種 ===============
-    // (A) 更新ボタン
+    // **************** イベント ****************
+    // データ更新(5m)
     fetchDataButton.addEventListener('click', async () => {
       try {
         progressBar.style.display = 'block';
         fetchDataButton.disabled = true;
-
-        // "/api/fetch" → fetch_data.py 実行 → latest_summary_5m.csv 作成
         const res = await fetch('/api/fetch', { method: 'POST' });
         if (!res.ok) throw new Error('Error updating data');
-        // 完了後に再取得
         await fetchData();
         alert('5mデータが更新されました！');
       } catch (err) {
@@ -489,7 +542,7 @@
       }
     });
 
-    // (B) Clearボタン
+    // Clearボタン
     clearFiltersButton.addEventListener('click', () => {
       filters = {
         priceChangeRate: null,
@@ -505,7 +558,7 @@
       applyFilters();
     });
 
-    // (C) フィルタボタン
+    // フィルタボタン
     Object.keys(conditionButtons).forEach(key => {
       const btn = conditionButtons[key];
       btn.addEventListener('click', () => {
@@ -544,15 +597,22 @@
       button.classList.toggle('active', filters[filterKey]);
     }
 
-    // (D) シンボル検索
+    // シンボル検索
     symbolSearch.addEventListener('input', e => {
       filters.symbolSearch = e.target.value;
       applyFilters();
     });
 
-    // =============== 初期ロード ===============
+    // カラム選択チェックボックス → 変更でテーブル再描画
+    columnCheckboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', () => {
+        applyFilters();
+      });
+    });
+
+    // **************** 初期ロード ****************
     window.addEventListener('DOMContentLoaded', () => {
-      fetchData(); // 5mデータ取得
+      fetchData(); // 5mデータ読み込み
     });
   </script>
 </body>
