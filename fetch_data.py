@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from pytz import timezone as pytz_timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Bybit Futures API endpoints
+# Bybit API endpoints
 BASE_URL_KLINE = "https://api.bybit.com/v5/market/kline"
 BASE_URL_OI = "https://api.bybit.com/v5/market/open-interest"
 BASE_URL_SYMBOLS = "https://api.bybit.com/v5/market/instruments-info"
@@ -17,24 +17,17 @@ HEADERS = {
 
 print("Request Headers:", HEADERS)
 
-# タイムフレーム: 5分足, 15分足のみ
-KLINE_INTERVAL_MAP = {
-    "5m":  "5",
-    "15m": "15"
-}
-OI_INTERVAL_MAP = {
-    "5m":  "5min",
-    "15m": "15min"
-}
+# 今回は「5分足」固定 & 「8本取得」のみ
+KLINE_INTERVAL = "5"       # Bybitの "5" → 5分足
+OI_INTERVAL = "5min"
+LIMIT_KLINE = 8            # Klineは8本
+LIMIT_OI = 20              # OIはstart/endを絞って最大20などにしておく
 
-# start/endを最小化 & limit=12 でデータ量削減
-TIMEFRAME_FETCH_MINUTES = {
-    "5m":  60,   # 5分足: 過去1時間分
-    "15m": 180,  # 15分足: 過去3時間分
-}
+# 過去40分にすれば理論上8本の5分足を取得
+MINUTES_FOR_5M = 40
 
 # --------------------------------------------------------------------
-# 1. シンボル一覧取得
+# 1. シンボル一覧 (USDT建て・先物)
 # --------------------------------------------------------------------
 def fetch_all_symbols(category="linear"):
     try:
@@ -54,48 +47,38 @@ def fetch_all_symbols(category="linear"):
         return []
 
 # --------------------------------------------------------------------
-# 2. Kline取得
+# 2. Kline (5分足 × 8本)
 # --------------------------------------------------------------------
-def get_kline_data(symbol, kline_interval, start_time, end_time):
-    """
-    limit=12 本に絞って取得
-    """
+def get_kline_data(symbol, start_time, end_time):
     try:
         params = {
             "category": "linear",
             "symbol": symbol,
-            "interval": kline_interval,
+            "interval": KLINE_INTERVAL,  # "5"
             "start": int(start_time.timestamp() * 1000),
             "end": int(end_time.timestamp() * 1000),
-            "limit": 12
+            "limit": LIMIT_KLINE        # 8
         }
         resp = requests.get(BASE_URL_KLINE, params=params, headers=HEADERS)
         resp.raise_for_status()
         data = resp.json()
         return data.get("result", {}).get("list", [])
     except Exception as e:
-        print(f"Error fetching Kline data for {symbol}, {kline_interval}: {e}")
+        print(f"Error fetching Kline data for {symbol}: {e}")
         return []
 
 # --------------------------------------------------------------------
-# 3. OI取得
+# 3. Open Interest (5分足相当)
 # --------------------------------------------------------------------
-def get_open_interest_history(symbol, oi_interval):
-    """
-    start/endを短くし、返ってくる本数を抑える
-    """
+def get_open_interest_history(symbol, start_time, end_time):
     try:
-        end_time = datetime.now(timezone.utc)
-        minutes_to_fetch = TIMEFRAME_FETCH_MINUTES.get(oi_interval, 60)
-        start_time = end_time - timedelta(minutes=minutes_to_fetch)
-
         params = {
             "category": "linear",
             "symbol": symbol,
-            "intervalTime": oi_interval,
+            "intervalTime": OI_INTERVAL,  # "5min"
             "start": int(start_time.timestamp() * 1000),
             "end": int(end_time.timestamp() * 1000),
-            "limit": 50  # up to 50
+            "limit": LIMIT_OI            # up to 20
         }
         resp = requests.get(BASE_URL_OI, params=params, headers=HEADERS)
         resp.raise_for_status()
@@ -105,21 +88,22 @@ def get_open_interest_history(symbol, oi_interval):
             return None
 
         df = pd.DataFrame(rows)
+        # timestamp ms → s
         df["timestamp"] = pd.to_numeric(df["timestamp"], errors="coerce") // 1000
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit='s', utc=True).dt.tz_convert("Asia/Tokyo")
         df["openInterest"] = pd.to_numeric(df["openInterest"], errors='coerce')
         return df
     except Exception as e:
-        print(f"Error fetching OI for {symbol}, {oi_interval}: {e}")
+        print(f"Error fetching OI for {symbol}: {e}")
         return None
 
 # --------------------------------------------------------------------
-# 4. Funding Rate (最新だけ使えばOK)
+# 4. Funding Rate (最新1本)
 # --------------------------------------------------------------------
 def get_funding_rate(symbol):
     try:
         end_time = datetime.now(timezone.utc)
-        start_time = end_time - timedelta(hours=48)
+        start_time = end_time - timedelta(hours=48)  # 2日分
         params = {
             "category": "linear",
             "symbol": symbol,
@@ -131,7 +115,6 @@ def get_funding_rate(symbol):
         resp = requests.get(BASE_URL_FUNDING_HISTORY, params=params, headers=HEADERS)
         resp.raise_for_status()
         data = resp.json()
-
         flist = data.get("result", {}).get("list", [])
         if not flist:
             return 0.0
@@ -141,23 +124,21 @@ def get_funding_rate(symbol):
         return 0.0
 
 # --------------------------------------------------------------------
-# 5. 1銘柄データ (Kline+OI+Funding)
+# 5. 1銘柄の取得
 # --------------------------------------------------------------------
-def fetch_data_for_symbol(symbol, user_tf):
+def fetch_data_for_symbol(symbol):
     try:
-        kline_interval = KLINE_INTERVAL_MAP[user_tf]
-        oi_interval = OI_INTERVAL_MAP[user_tf]
-
+        # 5分足8本 → 過去40分で十分(余裕をみて60分でもOK)
         end_time = datetime.now(timezone.utc)
-        start_time = end_time - timedelta(minutes=TIMEFRAME_FETCH_MINUTES[user_tf])
+        start_time = end_time - timedelta(minutes=MINUTES_FOR_5M)
 
         # Kline
-        kline_data = get_kline_data(symbol, kline_interval, start_time, end_time)
+        kline_data = get_kline_data(symbol, start_time, end_time)
         if not kline_data:
             return None
 
         # OI
-        oi_data = get_open_interest_history(symbol, oi_interval)
+        oi_data = get_open_interest_history(symbol, start_time, end_time)
         # Funding
         funding_rate = get_funding_rate(symbol)
 
@@ -176,22 +157,21 @@ def fetch_data_for_symbol(symbol, user_tf):
             for e in kline_data
         ])
 
-        # OIマージ
         if oi_data is not None and not oi_data.empty:
             merged = pd.merge(kline_df, oi_data, on="timestamp", how="left").fillna(0)
             return merged
         return kline_df
     except Exception as e:
-        print(f"Error fetch_data_for_symbol: {symbol}, {user_tf}, {e}")
+        print(f"Error fetch_data_for_symbol: {symbol}, {e}")
         return None
 
 # --------------------------------------------------------------------
 # 6. 並列取得
 # --------------------------------------------------------------------
-def fetch_data_parallel(symbols, user_tf):
+def fetch_data_parallel(symbols):
     all_data = []
     with ThreadPoolExecutor(max_workers=10) as exe:
-        future_map = {exe.submit(fetch_data_for_symbol, s, user_tf): s for s in symbols}
+        future_map = {exe.submit(fetch_data_for_symbol, s): s for s in symbols}
         for f in as_completed(future_map):
             try:
                 df = f.result()
@@ -204,12 +184,15 @@ def fetch_data_parallel(symbols, user_tf):
     return pd.DataFrame()
 
 # --------------------------------------------------------------------
-# 7. サマリ (4,8,12本) + 出来高スパイクフラグ
+# 7. サマリ (8本) + 出来高スパイク
 # --------------------------------------------------------------------
-def summarize_data_with_latest(data):
+def summarize_data_8bars(data):
     """
-    - price/volume/oi の変化率(4本,8本,12本)
-    - volume_spike_flag: 最新バー vs 過去12本平均の2倍以上
+    8本分の変化率を計算:
+      - price_change_rate
+      - volume_change_rate
+      - oi_change_rate
+    出来高スパイク: 最新バーが直近8本平均の2倍以上
     """
     try:
         summary = []
@@ -217,69 +200,48 @@ def summarize_data_with_latest(data):
 
         for symbol, group in grouped:
             group = group.sort_values("timestamp")
+            if len(group) < 8:
+                continue
+
             latest = group.iloc[-1]
 
-            def change_rate(df, col, n):
-                if len(df) < n:
-                    return 0.0
+            # 変化率計算: (最新 - 8本前) / 8本前 * 100
+            def calc_rate(df, col):
                 val_new = df[col].iloc[-1]
-                val_old = df[col].iloc[-n]
+                val_old = df[col].iloc[-8]
                 if val_old != 0:
                     return (val_new - val_old) / val_old * 100
                 return 0.0
 
-            pc4  = change_rate(group, "close", 4)
-            pc8  = change_rate(group, "close", 8)
-            pc12 = change_rate(group, "close", 12)
+            price_chg = calc_rate(group, "close")
+            vol_chg   = calc_rate(group, "volume")
+            oi_chg    = calc_rate(group, "openInterest")
 
-            vc4  = change_rate(group, "volume", 4)
-            vc8  = change_rate(group, "volume", 8)
-            vc12 = change_rate(group, "volume", 12)
-
-            oi4  = change_rate(group, "openInterest", 4)
-            oi8  = change_rate(group, "openInterest", 8)
-            oi12 = change_rate(group, "openInterest", 12)
-
-            # 出来高スパイク
-            if len(group) >= 12:
-                vol_latest = group["volume"].iloc[-1]
-                vol_ma_12 = group["volume"].tail(12).mean()
-            else:
-                vol_latest = latest["volume"]
-                vol_ma_12 = group["volume"].mean()
-
-            volume_spike_flag = False
-            if vol_ma_12 > 0 and vol_latest >= 2.0 * vol_ma_12:
-                volume_spike_flag = True
+            # 出来高スパイク判定
+            vol_latest = group["volume"].iloc[-1]
+            vol_ma_8   = group["volume"].tail(8).mean()
+            volume_spike_flag = (vol_ma_8 > 0 and vol_latest >= 2.0 * vol_ma_8)
 
             summary.append({
-                "symbol": symbol,
-                "timestamp": latest["timestamp"],
-                "open": latest["open"],
-                "high": latest["high"],
-                "low": latest["low"],
-                "close": latest["close"],
-                "volume": latest["volume"],
+                "symbol":       symbol,
+                "timestamp":    latest["timestamp"],
+                "open":         latest["open"],
+                "high":         latest["high"],
+                "low":          latest["low"],
+                "close":        latest["close"],
+                "volume":       latest["volume"],
                 "openInterest": latest.get("openInterest", 0),
                 "funding_rate": round(latest.get("fundingRate", 0), 6),
 
-                "price_change_rate_4":  round(pc4, 3),
-                "price_change_rate_8":  round(pc8, 3),
-                "price_change_rate_12": round(pc12, 3),
-
-                "volume_change_rate_4":  round(vc4, 3),
-                "volume_change_rate_8":  round(vc8, 3),
-                "volume_change_rate_12": round(vc12, 3),
-
-                "oi_change_rate_4":  round(oi4, 3),
-                "oi_change_rate_8":  round(oi8, 3),
-                "oi_change_rate_12": round(oi12, 3),
+                "price_change_rate":  round(price_chg, 3),
+                "volume_change_rate": round(vol_chg, 3),
+                "oi_change_rate":     round(oi_chg, 3),
 
                 "volume_spike_flag": volume_spike_flag
             })
         return pd.DataFrame(summary).fillna(0)
     except Exception as e:
-        print(f"Error summarizing data: {e}")
+        print(f"Error summarizing data(8bars): {e}")
         return pd.DataFrame()
 
 # --------------------------------------------------------------------
@@ -290,33 +252,26 @@ if __name__ == "__main__":
         print("Fetching symbols...")
         symbols = fetch_all_symbols()
         if not symbols:
-            print("No symbols.")
+            print("No symbols retrieved.")
             exit(1)
-        print(f"Fetched {len(symbols)} symbols.")
-
-        # 今回は 5m, 15m だけ
-        timeframes = ["5m", "15m"]
+        print(f"Total symbols: {len(symbols)}")
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
         data_dir = os.path.join(current_dir, "data")
         os.makedirs(data_dir, exist_ok=True)
 
-        for tf in timeframes:
-            print(f"\n--- Processing {tf} ---")
-            df_all = fetch_data_parallel(symbols, tf)
-            if df_all.empty:
-                print(f"No data for {tf}.")
-                continue
-
-            summary_df = summarize_data_with_latest(df_all)
+        print("\n--- Processing 5m (8 bars) ---")
+        df_all = fetch_data_parallel(symbols)
+        if df_all.empty:
+            print("No data for 5m.")
+        else:
+            summary_df = summarize_data_8bars(df_all)
             if summary_df.empty:
-                print(f"Summary empty for {tf}.")
-                continue
-
-            csv_name = f"latest_summary_{tf}.csv"
-            csv_path = os.path.join(data_dir, csv_name)
-            summary_df.to_csv(csv_path, index=False, encoding="utf-8")
-            print(f"Saved {len(summary_df)} rows to {csv_path}")
+                print("Summary is empty for 5m.")
+            else:
+                csv_path = os.path.join(data_dir, "latest_summary_5m.csv")
+                summary_df.to_csv(csv_path, index=False, encoding="utf-8")
+                print(f"Saved {len(summary_df)} rows to {csv_path}")
 
     except Exception as e:
         print("Main error:", e)

@@ -1,31 +1,51 @@
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 import pandas as pd
 import os
+import subprocess
 import requests
-import subprocess  # 追加
 
 app = Flask(__name__)
 
-DATA_FILE = os.path.join(os.path.dirname(__file__), "data", "latest_summary.csv")
-
+# 「/api/data」 で 5分足 / 15分足 のCSVを切り替え
 @app.route("/api/data")
 def get_data():
-    if os.path.exists(DATA_FILE):
-        data = pd.read_csv(DATA_FILE)
-        return jsonify(data.to_dict(orient="records"))
-    return jsonify([])
+    """
+    ?tf=5m  → data/latest_summary_5m.csv
+    ?tf=15m → data/latest_summary_15m.csv
+    デフォルトは15m
+    """
+    tf = request.args.get("tf", "15m")
+    if tf == "5m":
+        data_file = os.path.join(os.path.dirname(__file__), "data", "latest_summary_5m.csv")
+    else:
+        data_file = os.path.join(os.path.dirname(__file__), "data", "latest_summary_15m.csv")
+
+    if os.path.exists(data_file):
+        df = pd.read_csv(data_file)
+        return jsonify(df.to_dict(orient="records"))
+    else:
+        return jsonify([])
 
 @app.route("/api/fetch", methods=["POST"])
 def fetch_data():
-    # 別のスクリプトを呼び出してデータ取得
-    os.system(f"python {os.path.join(os.path.dirname(__file__), 'fetch_data.py')}")
+    """
+    データ更新 → fetch_data.py を呼び出す等の処理
+    ここでは、5分足/15分足を両方生成するfetch_data.pyを実行する想定。
+    """
+    fetch_script = os.path.join(os.path.dirname(__file__), 'fetch_data.py')
+    if os.path.exists(fetch_script):
+        # fetch_data.py で 5分足,15分足のCSVをそれぞれ生成するイメージ
+        os.system(f"python {fetch_script}")
+    else:
+        return jsonify({"status": "error", "message": "fetch_data.py not found"}), 500
     return jsonify({"status": "success"})
 
 @app.route("/")
 def index():
+    # index.html を返す
     return render_template("index.html")
 
-# Renderの外部IPアドレスを取得するエンドポイント
+# もし Render や他ホストで IPを取得したい場合
 @app.route("/get-ip", methods=["GET"])
 def get_ip():
     try:
@@ -36,16 +56,10 @@ def get_ip():
     except requests.exceptions.RequestException as e:
         return jsonify({"error": str(e)}), 500
 
-# ★ここで curl を仕込んだテスト用エンドポイントを追加 ★
+# 例) curl-test など、デバッグ用エンドポイント
 @app.route("/curl-test", methods=["GET"])
 def curl_test():
-    """
-    Render上の環境から実際に curl を実行し、
-    Bybit APIへのリクエスト結果を確認するためのデバッグ用エンドポイント。
-    """
     try:
-        # curlコマンドをサブプロセスとして呼び出し
-        # -v オプションで詳細ログを確認できます
         result = subprocess.run(
             ["curl", "https://api.bybit.com/v5/market/instruments-info?category=linear", "-v"],
             capture_output=True,
