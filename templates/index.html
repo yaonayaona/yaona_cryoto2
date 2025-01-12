@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <!-- iPhone等のスマホ対応 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Crypto Data Table (5m only)</title>
+  <title>Crypto Data Table (5m / 8bars)</title>
 
   <style>
     /* ベース */
@@ -26,7 +26,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      flex-wrap: wrap; /* スマホ時折り返し */
+      flex-wrap: wrap;
       gap: 10px;
       margin-bottom: 8px;
       font-size: 14px;
@@ -36,28 +36,13 @@
       white-space: nowrap;
     }
 
-    /* 本数選択 + 更新ボタン */
+    /* 更新ボタン (5m) */
     .controls {
       display: flex;
-      flex-wrap: wrap;
       justify-content: center;
+      flex-wrap: wrap;
       gap: 10px;
       margin-bottom: 12px;
-    }
-    .controls .radio-group {
-      background-color: #3d3d3d;
-      padding: 6px 8px;
-      border: 1px solid #555;
-      border-radius: 4px;
-      font-size: 14px;
-    }
-    .controls label {
-      margin-right: 6px;
-      font-size: 14px;
-    }
-    .controls input[type="radio"] {
-      margin-right: 2px;
-      vertical-align: middle;
     }
     .controls .update-button {
       background-color: #007bff;
@@ -203,10 +188,19 @@
 
     /* レスポンシブ */
     @media (max-width: 600px) {
-      h1 { font-size: 1.2em; margin: 12px 0; }
-      .controls { gap: 8px; }
-      .search-container { gap: 6px; }
-      .condition-buttons { gap: 6px; }
+      h1 {
+        font-size: 1.2em;
+        margin: 12px 0;
+      }
+      .controls {
+        gap: 8px;
+      }
+      .search-container {
+        gap: 6px;
+      }
+      .condition-buttons {
+        gap: 6px;
+      }
       .data th, .data td {
         font-size: 12px;
         padding: 4px 6px;
@@ -215,7 +209,7 @@
   </style>
 </head>
 <body>
-  <h1>Crypto Data Table (5m only)</h1>
+  <h1>Crypto Data Table (5m / 8 bars)</h1>
 
   <!-- 更新情報 -->
   <div class="update-info">
@@ -223,25 +217,9 @@
     <span id="latest-timestamp">Timestamp:</span>
   </div>
 
-  <!-- 本数ラジオ + データ更新ボタン -->
+  <!-- 更新ボタン (5m) -->
   <div class="controls">
-    <!-- 4/8/12本足 ラジオボタン -->
-    <div class="radio-group" id="bars-group">
-      <label>
-        <input type="radio" name="bars" value="4" />
-        4本足
-      </label>
-      <label>
-        <input type="radio" name="bars" value="8" />
-        8本足
-      </label>
-      <label>
-        <input type="radio" name="bars" value="12" checked />
-        12本足
-      </label>
-    </div>
-
-    <!-- データ更新ボタン (5m 更新) -->
+    <!-- データ更新ボタン (5m) -->
     <button id="fetch-data" class="update-button">5m データ更新</button>
   </div>
 
@@ -258,18 +236,23 @@
 
   <!-- フィルタボタン群 -->
   <div class="condition-buttons">
+    <!-- 価格変化率フィルタ -->
     <button id="price-positive" class="filter-button">価格変化 ≧ 0</button>
     <button id="price-negative" class="filter-button">価格変化 ＜ 0</button>
 
+    <!-- 出来高変化率フィルタ -->
     <button id="volume-positive" class="filter-button">出来高 ≧ 0</button>
     <button id="volume-negative" class="filter-button">出来高 ＜ 0</button>
 
+    <!-- OI変化率フィルタ -->
     <button id="oi-positive" class="filter-button">OI変化 ≧ 0</button>
     <button id="oi-negative" class="filter-button">OI変化 ＜ 0</button>
 
+    <!-- ファンディングレートフィルタ -->
     <button id="fr-positive" class="filter-button">FR ≧ 0.0001</button>
     <button id="fr-negative" class="filter-button">FR ＜ 0.0001</button>
 
+    <!-- 出来高スパイク & 小動き -->
     <button id="volume-spike" class="filter-button">VolumeSpike</button>
     <button id="small-price" class="filter-button">SmallPrice</button>
   </div>
@@ -279,38 +262,28 @@
 
   <script>
     // =============== カラム定義 ===============
-    // 固定部分 + 4/8/12動的列 + スパイク/小動き列
-    const baseColumns = [
-      { key: 'symbol', label: 'Symbol' },
-      { key: 'close',  label: 'Close' },
-      { key: 'volume', label: 'Volume' },
-      { key: 'funding_rate', label: 'FundingRate' },
-      { key: 'openInterest', label: 'OpenInt' },
-    ];
-    const dynamicColsMap = {
-      "4": [
-        { key: 'price_change_rate_4',   label: '価格変動(4)' },
-        { key: 'volume_change_rate_4',  label: '出来高(4)' },
-        { key: 'oi_change_rate_4',      label: 'OI変化(4)' },
-      ],
-      "8": [
-        { key: 'price_change_rate_8',   label: '価格変動(8)' },
-        { key: 'volume_change_rate_8',  label: '出来高(8)' },
-        { key: 'oi_change_rate_8',      label: 'OI変化(8)' },
-      ],
-      "12": [
-        { key: 'price_change_rate_12',  label: '価格変動(12)' },
-        { key: 'volume_change_rate_12', label: '出来高(12)' },
-        { key: 'oi_change_rate_12',     label: 'OI変化(12)' },
-      ]
-    };
-    const flagsColumns = [
-      { key: 'volume_spike_flag', label: 'VolSpike' },
+    // fetch_data.py の summarize_data_8bars で出力:
+    //   price_change_rate, volume_change_rate, oi_change_rate
+    //   volume_spike_flag
+    //   small_price_move_flag（必要ならサマリ側で実装）
+    // 
+    // ここでは 5m,8本で "price_change_rate" / "volume_change_rate" / "oi_change_rate" として受け取る
+    const columns = [
+      { key: 'symbol',         label: 'Symbol' },
+      { key: 'close',          label: 'Close' },
+      { key: 'volume',         label: 'Volume' },
+      { key: 'funding_rate',   label: 'FundingRate' },
+      { key: 'openInterest',   label: 'OpenInt' },
+      // 変化率(単一)
+      { key: 'price_change_rate',  label: '価格変動' },
+      { key: 'volume_change_rate', label: '出来高変動' },
+      { key: 'oi_change_rate',     label: 'OI変動' },
+      // フラグ
+      { key: 'volume_spike_flag',  label: 'VolSpike' },
       { key: 'small_price_move_flag', label: 'SmallPrice' }
     ];
 
-    // =============== 要素取得 ===============
-    const barsGroup = document.getElementById('bars-group');
+    // 要素取得
     const fetchDataButton = document.getElementById('fetch-data');
     const progressBar = document.getElementById('progress-bar');
 
@@ -334,7 +307,7 @@
       smallPrice:   document.getElementById('small-price'),
     };
 
-    // =============== 状態変数 ===============
+    // 状態変数
     let originalData = [];
     let currentSort = { column: null, order: 'asc' };
     let filters = {
@@ -347,13 +320,10 @@
       smallPrice: null
     };
 
-    // 今回は 5分足(5m) のみ
-    let currentBars = '12'; // デフォルト12本足
-
-    // =============== データ取得(5m固定) ===============
+    // =============== データ取得(5m) ===============
     async function fetchData() {
       try {
-        // サーバーは "/api/data?tf=5m" を読み、latest_summary_5m.csv を返す想定
+        // サーバー側では "/api/data?tf=5m" → latest_summary_5m.csv
         const url = `/api/data?tf=5m`;
         const resp = await fetch(url);
         if (!resp.ok) {
@@ -361,14 +331,14 @@
         }
         originalData = await resp.json();
 
-        // 更新日時
+        // 更新時刻
         const now = new Date().toLocaleString();
         lastUpdatedSpan.textContent = `Last Updated: ${now}`;
 
         applyFilters();
       } catch (err) {
         console.error(err);
-        alert('データ取得に失敗しました。');
+        alert('5mデータ取得に失敗しました。');
       }
     }
 
@@ -376,53 +346,43 @@
     function applyFilters() {
       let filtered = [...originalData];
 
-      // 価格/出来高/OIの列は "price_change_rate_4" or "_8" or "_12" を選ぶ
-      const pKey = `price_change_rate_${currentBars}`;
-      const vKey = `volume_change_rate_${currentBars}`;
-      const oKey = `oi_change_rate_${currentBars}`;
-
-      // 価格変化
+      // 価格変化率
       if (filters.priceChangeRate === 'positive') {
-        filtered = filtered.filter(r => r[pKey] >= 0);
+        filtered = filtered.filter(r => r.price_change_rate >= 0);
       } else if (filters.priceChangeRate === 'negative') {
-        filtered = filtered.filter(r => r[pKey] < 0);
+        filtered = filtered.filter(r => r.price_change_rate < 0);
       }
-
-      // 出来高変化
+      // 出来高変化率
       if (filters.volumeChangeRate === 'positive') {
-        filtered = filtered.filter(r => r[vKey] >= 0);
+        filtered = filtered.filter(r => r.volume_change_rate >= 0);
       } else if (filters.volumeChangeRate === 'negative') {
-        filtered = filtered.filter(r => r[vKey] < 0);
+        filtered = filtered.filter(r => r.volume_change_rate < 0);
       }
-
-      // OI
+      // OI変化率
       if (filters.oiChangeRate === 'positive') {
-        filtered = filtered.filter(r => r[oKey] >= 0);
+        filtered = filtered.filter(r => r.oi_change_rate >= 0);
       } else if (filters.oiChangeRate === 'negative') {
-        filtered = filtered.filter(r => r[oKey] < 0);
+        filtered = filtered.filter(r => r.oi_change_rate < 0);
       }
-
       // FundingRate
       if (filters.fundingRate === 'positive') {
         filtered = filtered.filter(r => r.funding_rate >= 0.0001);
       } else if (filters.fundingRate === 'negative') {
         filtered = filtered.filter(r => r.funding_rate < 0.0001);
       }
-
-      // VolumeSpike / SmallPrice
+      // volume_spike
       if (filters.volumeSpike) {
         filtered = filtered.filter(r => r.volume_spike_flag === true);
       }
+      // small_price
       if (filters.smallPrice) {
         filtered = filtered.filter(r => r.small_price_move_flag === true);
       }
-
       // シンボル検索
       if (filters.symbolSearch) {
         const term = filters.symbolSearch.toLowerCase();
         filtered = filtered.filter(r => r.symbol.toLowerCase().includes(term));
       }
-
       // ソート
       if (currentSort.column) {
         filtered.sort((a, b) => {
@@ -451,42 +411,41 @@
       }
       latestTimestampSpan.textContent = `Timestamp: ${latestTS || 'N/A'}`;
 
-      // カラム: baseColumns + dynamic + flags
-      const dynCols = dynamicColsMap[currentBars];
-      const allCols = [...baseColumns, ...dynCols, ...flagsColumns];
-
+      // カラム
       let html = `
         <table class="data">
           <thead>
             <tr>
-              ${allCols.map(c => {
-                const sortIndicator = (currentSort.column === c.key)
+              ${columns.map(col => {
+                const sortIndicator = (currentSort.column === col.key)
                   ? (currentSort.order === 'asc' ? '▲' : '▼')
                   : '';
-                return `<th onclick="sortTable('${c.key}')">${c.label} ${sortIndicator}</th>`;
+                return `<th onclick="sortTable('${col.key}')">${col.label} ${sortIndicator}</th>`;
               }).join('')}
             </tr>
           </thead>
           <tbody>
       `;
-
       data.forEach(row => {
         html += '<tr>';
-        allCols.forEach(c => {
+        columns.forEach(c => {
           const val = row[c.key];
-          if (c.key.includes('price_change_rate_') ||
-              c.key.includes('volume_change_rate_') ||
-              c.key.includes('oi_change_rate_')) {
-            // 変化率: ±色分け
-            html += `<td class="${val >= 0 ? 'positive' : 'negative'}">${val}%</td>`;
-          } else if (c.key === 'symbol') {
+          if (c.key === 'symbol') {
             html += `<td class="symbol-cell">${val}</td>`;
-          } else if (c.key === 'funding_rate') {
+          }
+          else if (c.key === 'price_change_rate' ||
+                   c.key === 'volume_change_rate' ||
+                   c.key === 'oi_change_rate') {
+            html += `<td class="${val >= 0 ? 'positive' : 'negative'}">${val}%</td>`;
+          }
+          else if (c.key === 'funding_rate') {
             const cls = (val >= 0.0001) ? 'positive' : 'negative';
             html += `<td class="${cls}">${val}</td>`;
-          } else if (c.key === 'volume_spike_flag' || c.key === 'small_price_move_flag') {
+          }
+          else if (c.key === 'volume_spike_flag' || c.key === 'small_price_move_flag') {
             html += `<td>${val ? 'Yes' : 'No'}</td>`;
-          } else {
+          }
+          else {
             html += `<td>${val}</td>`;
           }
         });
@@ -498,35 +457,27 @@
     }
 
     // =============== ソート関数 ===============
-    window.sortTable = function(key) {
-      if (currentSort.column === key) {
+    window.sortTable = function(colKey) {
+      if (currentSort.column === colKey) {
         currentSort.order = (currentSort.order === 'asc') ? 'desc' : 'asc';
       } else {
-        currentSort.column = key;
+        currentSort.column = colKey;
         currentSort.order = 'asc';
       }
       applyFilters();
     };
 
     // =============== イベント各種 ===============
-    // (A) ラジオボタン(4/8/12)
-    barsGroup.addEventListener('change', e => {
-      if (e.target.name === 'bars') {
-        currentBars = e.target.value; // "4","8","12"
-        applyFilters();
-      }
-    });
-
-    // (B) 更新ボタン (5m用)
+    // (A) 更新ボタン
     fetchDataButton.addEventListener('click', async () => {
       try {
         progressBar.style.display = 'block';
         fetchDataButton.disabled = true;
 
-        // サーバーの /api/fetch で fetch_data.py を実行 → latest_summary_5m.csv を更新
+        // "/api/fetch" → fetch_data.py 実行 → latest_summary_5m.csv 作成
         const res = await fetch('/api/fetch', { method: 'POST' });
         if (!res.ok) throw new Error('Error updating data');
-        // 更新が完了したら再取得
+        // 完了後に再取得
         await fetchData();
         alert('5mデータが更新されました！');
       } catch (err) {
@@ -538,7 +489,7 @@
       }
     });
 
-    // (C) Clearボタン
+    // (B) Clearボタン
     clearFiltersButton.addEventListener('click', () => {
       filters = {
         priceChangeRate: null,
@@ -554,7 +505,7 @@
       applyFilters();
     });
 
-    // (D) フィルタボタン
+    // (C) フィルタボタン
     Object.keys(conditionButtons).forEach(key => {
       const btn = conditionButtons[key];
       btn.addEventListener('click', () => {
@@ -593,17 +544,15 @@
       button.classList.toggle('active', filters[filterKey]);
     }
 
-    // (E) シンボル検索
+    // (D) シンボル検索
     symbolSearch.addEventListener('input', e => {
       filters.symbolSearch = e.target.value;
       applyFilters();
     });
 
-    // =============== 初期ロード (5m, 12本) ===============
+    // =============== 初期ロード ===============
     window.addEventListener('DOMContentLoaded', () => {
-      // 5m足のみ扱う → fetchData() で "/api/data?tf=5m" を取得
-      currentBars = '12'; // デフォルト12本足
-      fetchData();
+      fetchData(); // 5mデータ取得
     });
   </script>
 </body>
