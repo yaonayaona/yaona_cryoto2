@@ -6,56 +6,46 @@ import requests
 
 app = Flask(__name__)
 
+# 「/api/data」 で 5分足 / 15分足 のCSVを切り替え
 @app.route("/api/data")
 def get_data():
     """
-    /api/data?tf=1h&bars=4
-    
-    timeframes =  [5m,15m,30m,1h,2h,4h,6h,12h,1d]
-    bars =        [2,4,6,8,10,12]
-    
-    ファイル名: data/latest_summary_{tf}_{bars}.csv
-    例: tf=1h, bars=4 → data/latest_summary_1h_4.csv
-    デフォルトは tf=1h, bars=4
+    ?tf=5m  → data/latest_summary_5m.csv
+    ?tf=15m → data/latest_summary_15m.csv
+    デフォルトは15m
     """
-    tf = request.args.get("tf", "1h")      # デフォルト1h
-    bars = request.args.get("bars", "4")   # デフォルト4本
-
-    filename = f"latest_summary_{tf}_{bars}.csv"
-    data_file = os.path.join(os.path.dirname(__file__), "data", filename)
+    tf = request.args.get("tf", "15m")
+    if tf == "5m":
+        data_file = os.path.join(os.path.dirname(__file__), "data", "latest_summary_5m.csv")
+    else:
+        data_file = os.path.join(os.path.dirname(__file__), "data", "latest_summary_15m.csv")
 
     if os.path.exists(data_file):
         df = pd.read_csv(data_file)
         return jsonify(df.to_dict(orient="records"))
     else:
-        # 存在しない場合は空配列
         return jsonify([])
 
 @app.route("/api/fetch", methods=["POST"])
 def fetch_data():
     """
-    データ更新: fetch_data.py を呼び出す。
-    このスクリプト内で全 timeframes × bars の組み合わせを生成 or
-    あるいは必要な tf,bars だけ生成するかは運用次第。
+    データ更新 → fetch_data.py を呼び出す等の処理
+    ここでは、5分足/15分足を両方生成するfetch_data.pyを実行する想定。
     """
     fetch_script = os.path.join(os.path.dirname(__file__), 'fetch_data.py')
-    if not os.path.exists(fetch_script):
+    if os.path.exists(fetch_script):
+        # fetch_data.py で 5分足,15分足のCSVをそれぞれ生成するイメージ
+        os.system(f"python {fetch_script}")
+    else:
         return jsonify({"status": "error", "message": "fetch_data.py not found"}), 500
-
-    # ここでは「全 timeframes × bars をまとめて生成する」想定。
-    # 必要に応じて fetch_data.py 内でループして CSVをたくさん作る。
-    # 例: 5m,15m,30m,1h,2h,4h,6h,12h,1d × 2,4,6,8,10,12
-    #  → "latest_summary_{tf}_{bars}.csv" の形で data/ に保存。
-    #
-    # もし "特定のtf,barsのみ作りたい" 場合は request.args から読み取るなど調整してください.
-    
-    os.system(f"python {fetch_script}")
     return jsonify({"status": "success"})
 
 @app.route("/")
 def index():
+    # index.html を返す
     return render_template("index.html")
 
+# もし Render や他ホストで IPを取得したい場合
 @app.route("/get-ip", methods=["GET"])
 def get_ip():
     try:
@@ -66,6 +56,7 @@ def get_ip():
     except requests.exceptions.RequestException as e:
         return jsonify({"error": str(e)}), 500
 
+# 例) curl-test など、デバッグ用エンドポイント
 @app.route("/curl-test", methods=["GET"])
 def curl_test():
     try:
