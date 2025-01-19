@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <!-- iPhone等のスマホ対応 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Crypto Data Table (5m / 8 bars)</title>
+  <title>Crypto Data Table (15m / 4 bars)</title>
 
   <style>
     /* ベース */
@@ -227,7 +227,7 @@
   </style>
 </head>
 <body>
-  <h1>Crypto Data Table (5m / 8 bars)</h1>
+  <h1>Crypto Data Table (15m / 4 bars)</h1>
 
   <!-- 更新情報 -->
   <div class="update-info">
@@ -237,7 +237,7 @@
 
   <!-- データ更新ボタン + カラム選択チェックボックス -->
   <div class="controls">
-    <button id="fetch-data" class="update-button">5m データ更新</button>
+    <button id="fetch-data" class="update-button">15m データ更新</button>
 
     <!-- カラム選択: デフォルトOFFにしたいものは checkedを外す -->
     <div class="column-select">
@@ -363,12 +363,12 @@
       smallPrice: null
     };
 
-    // **************** データ取得 (5m固定) ****************
+    // **************** データ取得 (15m固定) ****************
     async function fetchData() {
       try {
-        const url = `/api/data?tf=5m`; // 5m CSV
+        const url = `/api/data?tf=15m`; // 15m CSV
         const resp = await fetch(url);
-        if (!resp.ok) throw new Error('Error fetching 5m data');
+        if (!resp.ok) throw new Error('Error fetching 15m data');
 
         originalData = await resp.json();
 
@@ -379,7 +379,7 @@
         applyFilters();
       } catch (err) {
         console.error(err);
-        alert('5mデータ取得に失敗しました。');
+        alert('15mデータ取得に失敗しました。');
       }
     }
 
@@ -524,7 +524,7 @@
     };
 
     // **************** イベント ****************
-    // データ更新(5m)
+    // データ更新(15m)
     fetchDataButton.addEventListener('click', async () => {
       try {
         progressBar.style.display = 'block';
@@ -532,7 +532,7 @@
         const res = await fetch('/api/fetch', { method: 'POST' });
         if (!res.ok) throw new Error('Error updating data');
         await fetchData();
-        alert('5mデータが更新されました！');
+        alert('15mデータが更新されました！');
       } catch (err) {
         console.error(err);
         alert('データ更新中にエラーが発生しました。');
@@ -612,7 +612,7 @@
 
     // **************** 初期ロード ****************
     window.addEventListener('DOMContentLoaded', () => {
-      fetchData(); // 5mデータ読み込み
+      fetchData(); // 15mデータ読み込み
     });
   </script>
 </body>
